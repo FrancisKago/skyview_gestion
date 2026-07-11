@@ -15,7 +15,8 @@ const RULES: Array<[string, Role[]]> = [
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const rule = RULES.find(([prefix]) => pathname.startsWith(prefix));
+  const rule = RULES.find(([prefix]) =>
+    pathname === prefix || pathname.startsWith(prefix + '/'));
   if (!rule) return NextResponse.next();
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? await verifySessionToken(token) : null;

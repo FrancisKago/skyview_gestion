@@ -14,7 +14,10 @@ export interface Session {
   locationId: number | null; // bar ou cuisine pour barman/cuisinier, sinon null
 }
 
-const secret = () => new TextEncoder().encode(process.env.SESSION_SECRET!);
+const secret = () => {
+  if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET requis');
+  return new TextEncoder().encode(process.env.SESSION_SECRET);
+};
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);

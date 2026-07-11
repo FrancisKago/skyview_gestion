@@ -1,0 +1,1 @@
+CREATE INDEX "stock_movements_product_location_idx" ON "stock_movements" USING btree ("product_id","location_id");

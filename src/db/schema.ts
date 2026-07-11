@@ -1,6 +1,6 @@
 import {
   pgTable, serial, text, integer, boolean, numeric,
-  timestamp, date, pgEnum,
+  timestamp, date, pgEnum, index,
 } from 'drizzle-orm/pg-core';
 
 export const roleEnum = pgEnum('role', [
@@ -87,7 +87,9 @@ export const stockMovements = pgTable('stock_movements', {
   reason: text('reason'),      // obligatoire pour ajustement_admin
   userId: integer('user_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (table) => [
+  index('stock_movements_product_location_idx').on(table.productId, table.locationId),
+]);
 
 export const serviceExits = pgTable('service_exits', {
   id: serial('id').primaryKey(),

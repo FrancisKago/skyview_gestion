@@ -103,6 +103,7 @@ export interface ReceiveOrderInput {
 // - TOCTOU : la vérification du statut et les écritures ne sont pas enveloppées dans une
 //   transaction ; deux réceptions strictement simultanées pourraient toutes deux passer le
 //   contrôle "livree". Acceptable pour un seul barman/cuisinier par emplacement à la fois.
+//   La garde d'idempotence ci-dessous limite le pire cas au doublon de statut, pas de stock.
 // - Réception à zéro : qtyReceived = 0 sur toutes les lignes est acceptée (rien reçu du tout) ;
 //   la commande passe "receptionnee" sans qu'aucun mouvement de stock ne soit créé.
 export async function receiveOrder(db: AnyDb, input: ReceiveOrderInput):
@@ -112,14 +113,22 @@ export async function receiveOrder(db: AnyDb, input: ReceiveOrderInput):
   if (order.status !== 'livree') {
     return { ok: false, error: "Cette commande n'est pas en attente de réception" };
   }
-  // Un barman/cuisinier ne peut réceptionner que les commandes de son propre emplacement ;
-  // input.locationId est null côté admin (pas de restriction dans ce cas).
+  // Un barman/cuisinier ne peut réceptionner que les commandes de son propre emplacement.
+  // locationId null = pas de restriction : atteignable uniquement depuis du code serveur
+  // (l'action de /receptions refuse en amont toute session sans emplacement).
   if (input.locationId != null && order.locationId !== input.locationId) {
     return { ok: false, error: 'Cette commande ne concerne pas votre emplacement' };
   }
+  // Fusion des doublons AVANT validation et écritures (dernière valeur retenue) : sans
+  // cela, deux lignes pour le même produit passeraient le contrôle d'ensembles ci-dessous
+  // et créeraient DEUX mouvements, alors que la boucle d'update d'orderLines n'en garderait
+  // qu'une — stock gonflé silencieusement. "Dernière valeur retenue" pour rester cohérent
+  // avec cette boucle d'update, où la dernière écriture gagne.
+  const byProduct = new Map<number, number>();
+  for (const l of input.lines) byProduct.set(l.productId, l.qtyReceived);
   // Rejette les quantités négatives ET non finies (NaN/Infinity forgées) AVANT toute
   // écriture : cf. convention de src/lib/orders.ts#deliverOrder.
-  if (input.lines.some((l) => !Number.isFinite(l.qtyReceived) || l.qtyReceived < 0)) {
+  if ([...byProduct.values()].some((q) => !Number.isFinite(q) || q < 0)) {
     return { ok: false, error: 'Les quantités reçues ne peuvent pas être négatives' };
   }
   // Correspondance EXACTE avec les lignes de la commande : cf. deliverOrder ci-dessus.
@@ -127,23 +136,35 @@ export async function receiveOrder(db: AnyDb, input: ReceiveOrderInput):
     await db.select({ productId: orderLines.productId }).from(orderLines)
       .where(eq(orderLines.orderId, input.orderId));
   const expectedIds = new Set(existing.map((l) => l.productId));
-  const submittedIds = new Set(input.lines.map((l) => l.productId));
-  if (expectedIds.size !== submittedIds.size
-    || [...expectedIds].some((id) => !submittedIds.has(id))) {
+  if (expectedIds.size !== byProduct.size
+    || [...expectedIds].some((id) => !byProduct.has(id))) {
     return { ok: false, error: 'Lignes de réception incohérentes avec la commande' };
   }
-  for (const line of input.lines) {
+  for (const [productId, qtyReceived] of byProduct) {
     await db.update(orderLines)
-      .set({ qtyReceived: String(line.qtyReceived) })
-      .where(and(eq(orderLines.orderId, input.orderId), eq(orderLines.productId, line.productId)));
+      .set({ qtyReceived: String(qtyReceived) })
+      .where(and(eq(orderLines.orderId, input.orderId), eq(orderLines.productId, productId)));
   }
   // C'est ICI que le stock bouge (règle métier : à la confirmation, pas à la livraison).
-  const movements = input.lines.filter((l) => l.qtyReceived > 0).map((l) => ({
-    productId: l.productId, locationId: order.locationId, type: 'reception' as const,
-    qty: String(l.qtyReceived), refType: 'order', refId: order.id, userId: input.receivedBy,
-  }));
-  // drizzle jette une erreur sur .values([]) : on saute l'insert si tout est à zéro.
-  if (movements.length) {
+  const movements = [...byProduct.entries()].filter(([, qty]) => qty > 0)
+    .map(([productId, qty]) => ({
+      productId, locationId: order.locationId, type: 'reception' as const,
+      qty: String(qty), refType: 'order', refId: order.id, userId: input.receivedBy,
+    }));
+  // Garde d'idempotence (sans transaction) : les mouvements sont insérés AVANT le passage
+  // du statut à "receptionnee". Si ce passage échouait puis que l'utilisateur réessayait,
+  // une seconde insertion doublerait le stock. On vérifie donc qu'aucun mouvement
+  // 'reception' n'existe déjà pour cette commande : s'il y en a, un essai précédent les a
+  // déjà écrits ; on saute l'insert mais on termine quand même le changement de statut.
+  // (Les Tâches 16/18 — sorties de service et inventaire — reprendront cette même garde.)
+  const [alreadyRecorded] = await db.select({ id: stockMovements.id }).from(stockMovements)
+    .where(and(
+      eq(stockMovements.type, 'reception'),
+      eq(stockMovements.refType, 'order'),
+      eq(stockMovements.refId, order.id),
+    )).limit(1);
+  // drizzle jette une erreur sur .values([]) : on saute aussi l'insert si tout est à zéro.
+  if (!alreadyRecorded && movements.length) {
     await db.insert(stockMovements).values(movements);
   }
   await db.update(orders)

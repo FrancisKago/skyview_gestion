@@ -11,6 +11,10 @@ export type ReceptionFormState = { error?: string };
 export async function receiveOrderAction(_prev: ReceptionFormState, formData: FormData):
   Promise<ReceptionFormState> {
   const session = await requireRole(['barman', 'cuisinier']);
+  // Même garde que commandes/actions.ts : un compte sans emplacement (admin) ne doit pas
+  // pouvoir réceptionner via un POST direct — locationId null désactiverait le contrôle
+  // d'emplacement de receiveOrder.
+  if (!session.locationId) return { error: 'Aucun emplacement associé à votre compte' };
   const orderId = formNumber(formData, 'orderId');
   if (orderId == null) return { error: 'Commande invalide' };
 

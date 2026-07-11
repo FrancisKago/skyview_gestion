@@ -301,6 +301,59 @@ describe('receiveOrder', () => {
     expect(o.status).toBe('receptionnee');
   });
 
+  it('fusionne les lignes en doublon sur le même produit (pas de mouvement double)', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: castel.id!, qtyRequested: 36 }],
+    });
+    await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: castel.id!, qtyDelivered: 29 }],
+    });
+    // Deux lignes forgées pour le même produit : une seule doit compter (la dernière),
+    // sinon le stock serait gonflé à 56.
+    const res = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id,
+      lines: [
+        { productId: castel.id!, qtyReceived: 28 },
+        { productId: castel.id!, qtyReceived: 28 },
+      ],
+    });
+    expect(res.ok).toBe(true);
+    const stock = await getLocationStock(db, bar.id);
+    expect(stock[0].qty).toBe(28);
+    const movements = await db.select().from(stockMovements);
+    expect(movements).toHaveLength(1);
+  });
+
+  it("ne réinsère pas de mouvements si un essai précédent les a déjà écrits (idempotence)", async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: p.id!, qtyRequested: 5 }],
+    });
+    await deliverOrder(db, { orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: 5 }] });
+    // Simule un essai précédent interrompu APRÈS l'insert des mouvements mais AVANT le
+    // passage du statut : le mouvement existe déjà, la commande est toujours "livree".
+    await db.insert(stockMovements).values({
+      productId: p.id!, locationId: bar.id, type: 'reception',
+      qty: '5', refType: 'order', refId: order.id!, userId: barman.id,
+    });
+    const res = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: 5 }],
+    });
+    expect(res.ok).toBe(true);
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('receptionnee');
+    // Aucun mouvement supplémentaire : le stock reste à 5, pas 10.
+    const movements = await db.select().from(stockMovements);
+    expect(movements).toHaveLength(1);
+    const stock = await getLocationStock(db, bar.id);
+    expect(stock[0].qty).toBe(5);
+  });
+
   it("refuse la réception si l'emplacement de l'utilisateur ne correspond pas à celui de la commande", async () => {
     const db = await createTestDb();
     const { bar, cuisine, barman, magasinier } = await seedBase(db);

@@ -61,7 +61,7 @@ Choix retenu contre : (a) Supabase + front séparé — la logique métier (work
 ### Référentiel (géré par l'admin)
 - **Utilisateur** : nom, identifiant, mot de passe haché, rôle, actif
 - **Emplacement** : Magasin, Bar, Cuisine
-- **Produit** : nom, catégorie, unité de base (bouteille, kg, L…), conditionnement d'achat optionnel (nom + taille, ex. « casier » = 12), prix d'achat unitaire (FCFA), seuil d'alerte, actif
+- **Produit** : nom, catégorie, unité de base (bouteille, kg, L…), conditionnement d'achat optionnel (nom + taille, ex. « casier » = 12), prix d'achat unitaire (FCFA), seuil d'alerte (comparé au stock de chaque emplacement séparément), actif
 - **Article de vente** : nom tel qu'exporté par la caisse, emplacement concerné (bar/cuisine), fiche technique = liste de lignes (produit, quantité en unité de base). Exemples : « Poulet DG » = 0,4 kg poulet + 0,2 kg plantain ; « Whisky (verre) » = 0,04 L de la bouteille ; « Castel 65cl » = 1 bouteille
 
 ### Flux quotidiens
@@ -72,7 +72,7 @@ Choix retenu contre : (a) Supabase + front séparé — la logique métier (work
 ### Contrôle
 - **Inventaire** : emplacement, date, compté par, statut, lignes (produit, qté théorique, qté comptée, écart, valeur de l'écart) ; la validation crée les mouvements d'ajustement
 - **Import de ventes** : fichier, période, uploadé par, lignes (article caisse, quantité vendue) ; lignes non reconnues mises en attente de correspondance
-- **Rapprochement** : par produit et période — consommation théorique (ventes × fiches techniques) vs sorties déclarées, écart en quantité et en FCFA
+- **Rapprochement** : par produit, sur la période couverte par le fichier importé (typiquement une journée de service) — consommation théorique (ventes × fiches techniques) vs sorties déclarées, écart en quantité et en FCFA
 
 ## 6. Règles métier et cas particuliers
 

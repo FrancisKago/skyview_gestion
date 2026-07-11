@@ -5,7 +5,7 @@ import { saveProduct } from '@/lib/products';
 import { saveSaleArticle } from '@/lib/sale-articles';
 import { recordServiceExit } from '@/lib/service-exits';
 import { storeSalesImport, matchImportLine, getReconciliationReport } from '@/lib/sales-imports';
-import { stockMovements, salesImportLines } from '@/db/schema';
+import { stockMovements, salesImportLines, saleArticles } from '@/db/schema';
 
 async function setup(db: Awaited<ReturnType<typeof createTestDb>>) {
   const base = await seedBase(db);
@@ -115,6 +115,48 @@ describe('matchImportLine + rapport', () => {
     expect(report.unmatchedCount).toBe(0);
     const line = report.lines.find((l) => l.productId === castel.id);
     expect(line?.theoretical).toBe(10);
+  });
+
+  it('une correspondance matche EN MASSE toutes les lignes en attente du même nom brut', async () => {
+    const db = await createTestDb();
+    const { comptable } = await setup(db);
+    // Deux imports contenant la même orthographe caisse inconnue
+    const imp1 = await storeSalesImport(db, {
+      filename: 'ventes1.csv', serviceDate: '2026-07-10', uploadedBy: comptable.id,
+      rows: [{ articleName: 'MOJITO SPÉCIAL', qty: 3 }],
+    });
+    await storeSalesImport(db, {
+      filename: 'ventes2.csv', serviceDate: '2026-07-11', uploadedBy: comptable.id,
+      rows: [{ articleName: 'MOJITO SPÉCIAL', qty: 5 }],
+    });
+    const [line1] = await db.select().from(salesImportLines)
+      .where(eq(salesImportLines.importId, imp1.id!));
+    const res = await matchImportLine(db, { lineId: line1.id, saleArticleCashName: 'Castel 65cl' });
+    expect(res.ok).toBe(true);
+    expect(res.updatedCount).toBe(2);
+    const all = await db.select().from(salesImportLines);
+    expect(all.every((l) => l.saleArticleId != null)).toBe(true);
+  });
+
+  it('ne crée pas deux alias pour la même orthographe à la casse près', async () => {
+    const db = await createTestDb();
+    const { comptable } = await setup(db);
+    const imp = await storeSalesImport(db, {
+      filename: 'ventes.csv', serviceDate: '2026-07-10', uploadedBy: comptable.id,
+      rows: [
+        { articleName: 'CASTEL GRANDE', qty: 2 },
+        { articleName: 'castel grande', qty: 1 },
+      ],
+    });
+    const lines = await db.select().from(salesImportLines)
+      .where(eq(salesImportLines.importId, imp.id!));
+    // Deux appels explicites (le premier matche déjà les deux lignes en masse) :
+    // le second ne doit PAS créer un alias supplémentaire malgré la casse différente.
+    await matchImportLine(db, { lineId: lines[0].id, saleArticleCashName: 'Castel 65cl' });
+    await matchImportLine(db, { lineId: lines[1].id, saleArticleCashName: 'Castel 65cl' });
+    const articles = await db.select().from(saleArticles);
+    const grandes = articles.filter((a) => a.cashName.toLowerCase() === 'castel grande');
+    expect(grandes).toHaveLength(1);
   });
 
   it("retourne un rapport vide pour un import inexistant", async () => {

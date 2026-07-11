@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   salesImports, salesImportLines, saleArticles, products, recipeLines,
   serviceExits, serviceExitLines,
@@ -30,14 +30,16 @@ export async function storeSalesImport(db: AnyDb, input: {
     filename: input.filename, serviceDate: input.serviceDate, uploadedBy: input.uploadedBy,
   }).returning();
   let matched = 0, unmatched = 0;
-  for (const row of input.rows) {
+  const lineValues = input.rows.map((row) => {
     const saleArticleId = byName.get(row.articleName.trim().toLowerCase()) ?? null;
     if (saleArticleId) matched++; else unmatched++;
-    await db.insert(salesImportLines).values({
+    return {
       importId: imp.id, articleNameRaw: row.articleName.trim(),
       qty: String(row.qty), saleArticleId,
-    });
-  }
+    };
+  });
+  // Insert groupé : une seule requête pour toutes les lignes (rows non vide, validé plus haut).
+  await db.insert(salesImportLines).values(lineValues);
   return { ok: true, id: imp.id, matched, unmatched };
 }
 
@@ -49,7 +51,7 @@ export async function storeSalesImport(db: AnyDb, input: {
 // ultérieur de la fiche « source » ne se répercute donc pas sur ses alias.
 export async function matchImportLine(db: AnyDb, input: {
   lineId: number; saleArticleCashName: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; updatedCount?: number; error?: string }> {
   const [target] = await db.select().from(saleArticles)
     .where(eq(saleArticles.cashName, input.saleArticleCashName));
   if (!target) return { ok: false, error: 'Article de vente introuvable' };
@@ -59,9 +61,23 @@ export async function matchImportLine(db: AnyDb, input: {
   await db.update(salesImportLines)
     .set({ saleArticleId: target.id })
     .where(eq(salesImportLines.id, input.lineId));
+  // Correspondance en masse : toutes les AUTRES lignes encore en attente portant la
+  // même orthographe brute (à la casse près) sont associées au même article — la
+  // même orthographe peut apparaître dans plusieurs imports en attente, inutile de
+  // demander la même association plusieurs fois.
+  const others: Array<{ id: number }> = await db.update(salesImportLines)
+    .set({ saleArticleId: target.id })
+    .where(and(
+      ne(salesImportLines.id, input.lineId),
+      isNull(salesImportLines.saleArticleId),
+      sql`lower(${salesImportLines.articleNameRaw}) = lower(${line.articleNameRaw})`,
+    ))
+    .returning({ id: salesImportLines.id });
   // Alias : copie de fiche technique sous le nom brut, pour les prochains imports.
-  const existingAlias = await db.select().from(saleArticles)
-    .where(eq(saleArticles.cashName, line.articleNameRaw));
+  // Existence vérifiée SANS tenir compte de la casse : 'castel grande' et
+  // 'CASTEL GRANDE' ne doivent pas engendrer deux alias distincts.
+  const existingAlias = await db.select({ id: saleArticles.id }).from(saleArticles)
+    .where(sql`lower(${saleArticles.cashName}) = lower(${line.articleNameRaw})`);
   if (!existingAlias.length && line.articleNameRaw.toLowerCase() !== target.cashName.toLowerCase()) {
     const [alias] = await db.insert(saleArticles).values({
       cashName: line.articleNameRaw, locationId: target.locationId,
@@ -74,7 +90,7 @@ export async function matchImportLine(db: AnyDb, input: {
       })));
     }
   }
-  return { ok: true };
+  return { ok: true, updatedCount: 1 + others.length };
 }
 
 export interface ReconciliationReport {

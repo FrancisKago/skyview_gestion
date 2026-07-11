@@ -3,7 +3,7 @@ import { salesImports, salesImportLines, saleArticles } from '@/db/schema';
 import { desc, isNull, asc } from 'drizzle-orm';
 import { requireRole } from '@/lib/session';
 import { UploadForm } from './upload-form';
-import { matchLineAction } from './actions';
+import { MatchForm } from './match-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,14 +23,8 @@ export default async function ImportsPage() {
         <div className="bg-amber-50 rounded-xl p-3 space-y-2 text-sm">
           <p className="font-semibold">⚠️ Articles à faire correspondre :</p>
           {pending.map((l) => (
-            <form key={l.id} action={matchLineAction} className="flex gap-2 items-center">
-              <input type="hidden" name="lineId" value={l.id} />
-              <span className="flex-1">« {l.articleNameRaw} » (qté {Number(l.qty)})</span>
-              <select name="cashName" className="border rounded p-1">
-                {articles.map((a) => <option key={a.id} value={a.cashName}>{a.cashName}</option>)}
-              </select>
-              <button className="bg-indigo-600 text-white rounded px-2 py-1 text-xs">Associer</button>
-            </form>
+            <MatchForm key={l.id} lineId={l.id} raw={l.articleNameRaw} qty={Number(l.qty)}
+              articles={articles.map((a) => ({ id: a.id, cashName: a.cashName }))} />
           ))}
         </div>
       )}

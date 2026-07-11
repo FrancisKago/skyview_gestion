@@ -44,6 +44,23 @@ describe('createOrder', () => {
     })).ok).toBe(false);
   });
 
+  it('fusionne les lignes en doublon sur le même produit', async () => {
+    const db = await createTestDb();
+    const { bar, barman } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    const res = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id,
+      lines: [
+        { productId: p.id!, qtyRequested: 12 },
+        { productId: p.id!, qtyRequested: 24 },
+      ],
+    });
+    expect(res.ok).toBe(true);
+    const lines = await db.select().from(orderLines).where(eq(orderLines.orderId, res.id!));
+    expect(lines).toHaveLength(1);
+    expect(Number(lines[0].qtyRequested)).toBe(36);
+  });
+
   it('refuse un produit inconnu', async () => {
     const db = await createTestDb();
     const { bar, barman } = await seedBase(db);

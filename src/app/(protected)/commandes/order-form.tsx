@@ -1,5 +1,5 @@
 'use client';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { createOrderAction } from './actions';
 
 type Prod = { id: number; name: string; baseUnit: string; packName: string | null; packSize: number | null };
@@ -7,8 +7,15 @@ type Prod = { id: number; name: string; baseUnit: string; packName: string | nul
 export function OrderForm({ products }: { products: Prod[] }) {
   const [state, action, pending] = useActionState(createOrderAction, {});
   const [lineCount, setLineCount] = useState(3);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Vide le formulaire après un envoi réussi (le message ✅ reste affiché).
+  // Dépendance sur `state` (nouvel objet à chaque retour d'action) et non
+  // `state.success` : deux succès consécutifs doivent chacun vider le formulaire.
+  useEffect(() => {
+    if (state.success) formRef.current?.reset();
+  }, [state]);
   return (
-    <form action={action} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
+    <form ref={formRef} action={action} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
       <p className="font-semibold">Nouvelle commande (en unités de base) :</p>
       {Array.from({ length: lineCount }).map((_, i) => (
         <div key={i} className="flex gap-2">

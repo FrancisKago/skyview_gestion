@@ -1,4 +1,4 @@
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { orders, orderLines, products } from '@/db/schema';
 import type { AnyDb } from '@/db';
 import { round3 } from '@/lib/units';
@@ -42,4 +42,33 @@ export async function createOrder(db: AnyDb, input: CreateOrderInput):
     })),
   );
   return { ok: true, id: order.id };
+}
+
+export interface DeliverOrderInput {
+  orderId: number;
+  deliveredBy: number;
+  lines: Array<{ productId: number; qtyDelivered: number }>;
+}
+
+export async function deliverOrder(db: AnyDb, input: DeliverOrderInput):
+  Promise<{ ok: boolean; error?: string }> {
+  const [order] = await db.select().from(orders).where(eq(orders.id, input.orderId));
+  if (!order) return { ok: false, error: 'Commande introuvable' };
+  if (order.status !== 'en_attente') {
+    return { ok: false, error: 'Cette commande a déjà été livrée' };
+  }
+  // Rejette les quantités négatives ET non finies (NaN/Infinity forgées) AVANT toute
+  // écriture : cf. convention de src/lib/products.ts / src/lib/orders.ts#createOrder.
+  if (input.lines.some((l) => !Number.isFinite(l.qtyDelivered) || l.qtyDelivered < 0)) {
+    return { ok: false, error: 'Les quantités livrées ne peuvent pas être négatives' };
+  }
+  for (const line of input.lines) {
+    await db.update(orderLines)
+      .set({ qtyDelivered: String(line.qtyDelivered) })
+      .where(and(eq(orderLines.orderId, input.orderId), eq(orderLines.productId, line.productId)));
+  }
+  await db.update(orders)
+    .set({ status: 'livree', deliveredBy: input.deliveredBy, deliveredAt: new Date() })
+    .where(eq(orders.id, input.orderId));
+  return { ok: true };
 }

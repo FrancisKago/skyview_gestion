@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createTestDb, seedBase } from '../helpers/db';
 import { saveProduct } from '@/lib/products';
-import { createOrder } from '@/lib/orders';
+import { createOrder, deliverOrder } from '@/lib/orders';
 import { orders, orderLines } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -69,5 +69,72 @@ describe('createOrder', () => {
     });
     expect(res.ok).toBe(false);
     expect(res.error).toBe('Produit inconnu dans la commande');
+  });
+});
+
+describe('deliverOrder', () => {
+  it('enregistre les quantités livrées et passe la commande en "livree"', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const castel = await saveProduct(db, {
+      name: 'Castel', baseUnit: 'bouteille', packName: 'casier', packSize: 12, purchasePrice: 650,
+    });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id,
+      lines: [{ productId: castel.id!, qtyRequested: 36 }],
+    });
+    // Le magasinier livre 2 casiers + 5 bouteilles = 29 (écart vs 36 demandées)
+    const res = await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id,
+      lines: [{ productId: castel.id!, qtyDelivered: 29 }],
+    });
+    expect(res.ok).toBe(true);
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('livree');
+    expect(o.deliveredBy).toBe(magasinier.id);
+    const lines = await db.select().from(orderLines).where(eq(orderLines.orderId, order.id!));
+    expect(Number(lines[0].qtyDelivered)).toBe(29);
+  });
+
+  it('refuse de livrer une commande déjà livrée', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: p.id!, qtyRequested: 5 }],
+    });
+    await deliverOrder(db, { orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: 5 }] });
+    const again = await deliverOrder(db, { orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: 5 }] });
+    expect(again.ok).toBe(false); // protection double soumission
+  });
+
+  it('refuse une commande introuvable', async () => {
+    const db = await createTestDb();
+    const { magasinier } = await seedBase(db);
+    const res = await deliverOrder(db, {
+      orderId: 999999, deliveredBy: magasinier.id, lines: [],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Commande introuvable');
+  });
+
+  it('refuse une quantité livrée négative ou non finie', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: p.id!, qtyRequested: 5 }],
+    });
+    const negative = await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: -1 }],
+    });
+    expect(negative.ok).toBe(false);
+    const nonFinite = await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: NaN }],
+    });
+    expect(nonFinite.ok).toBe(false);
+    // La commande n'a pas été modifiée par les tentatives refusées
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('en_attente');
   });
 });

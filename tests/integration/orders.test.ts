@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createTestDb, seedBase } from '../helpers/db';
 import { saveProduct } from '@/lib/products';
-import { createOrder, deliverOrder } from '@/lib/orders';
-import { orders, orderLines } from '@/db/schema';
+import { createOrder, deliverOrder, receiveOrder } from '@/lib/orders';
+import { orders, orderLines, stockMovements } from '@/db/schema';
+import { getLocationStock } from '@/lib/stock';
 import { eq } from 'drizzle-orm';
 
 describe('createOrder', () => {
@@ -183,5 +184,135 @@ describe('deliverOrder', () => {
     // La commande n'a pas été modifiée par les tentatives refusées
     const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
     expect(o.status).toBe('en_attente');
+  });
+});
+
+describe('receiveOrder', () => {
+  it("crée les mouvements 'reception' et met à jour le stock à la confirmation", async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: castel.id!, qtyRequested: 36 }],
+    });
+    await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: castel.id!, qtyDelivered: 29 }],
+    });
+    // Avant réception : stock inchangé (règle métier n°2 de la spec)
+    expect(await getLocationStock(db, bar.id)).toEqual([]);
+    // Le barman confirme 28 (1 bouteille cassée : écart livré/reçu)
+    const res = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: castel.id!, qtyReceived: 28 }],
+    });
+    expect(res.ok).toBe(true);
+    const stock = await getLocationStock(db, bar.id);
+    expect(stock[0].qty).toBe(28);
+    const [mvt] = await db.select().from(stockMovements);
+    expect(mvt.type).toBe('reception');
+    expect(mvt.refType).toBe('order');
+    expect(mvt.refId).toBe(order.id);
+    expect(mvt.userId).toBe(barman.id);
+  });
+
+  it('refuse une réception sur une commande non livrée ou déjà réceptionnée', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: p.id!, qtyRequested: 5 }],
+    });
+    expect((await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: 5 }],
+    })).ok).toBe(false);
+    await deliverOrder(db, { orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: 5 }] });
+    await receiveOrder(db, { orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: 5 }] });
+    expect((await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: 5 }],
+    })).ok).toBe(false);
+  });
+
+  it('refuse une quantité reçue non finie ou négative', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: p.id!, qtyRequested: 5 }],
+    });
+    await deliverOrder(db, { orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: 5 }] });
+    const negative = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: -1 }],
+    });
+    expect(negative.ok).toBe(false);
+    const nonFinite = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: NaN }],
+    });
+    expect(nonFinite.ok).toBe(false);
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('livree');
+  });
+
+  it('refuse une réception dont les lignes ne correspondent pas exactement à la commande', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    const riz = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id,
+      lines: [
+        { productId: castel.id!, qtyRequested: 12 },
+        { productId: riz.id!, qtyRequested: 5 },
+      ],
+    });
+    await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id,
+      lines: [
+        { productId: castel.id!, qtyDelivered: 12 },
+        { productId: riz.id!, qtyDelivered: 5 },
+      ],
+    });
+    // Ligne omise → refus, rien n'est écrit
+    const res = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id,
+      lines: [{ productId: castel.id!, qtyReceived: 12 }],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Lignes de réception incohérentes avec la commande');
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('livree');
+    const movements = await db.select().from(stockMovements);
+    expect(movements).toHaveLength(0);
+  });
+
+  it('accepte une réception entièrement à zéro sans créer de mouvement', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id, lines: [{ productId: p.id!, qtyRequested: 5 }],
+    });
+    await deliverOrder(db, { orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: 5 }] });
+    const res = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: 0 }],
+    });
+    expect(res.ok).toBe(true);
+    const movements = await db.select().from(stockMovements);
+    expect(movements).toHaveLength(0);
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('receptionnee');
+  });
+
+  it("refuse la réception si l'emplacement de l'utilisateur ne correspond pas à celui de la commande", async () => {
+    const db = await createTestDb();
+    const { bar, cuisine, barman, magasinier } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: cuisine.id, createdBy: barman.id, lines: [{ productId: p.id!, qtyRequested: 5 }],
+    });
+    await deliverOrder(db, { orderId: order.id!, deliveredBy: magasinier.id, lines: [{ productId: p.id!, qtyDelivered: 5 }] });
+    const res = await receiveOrder(db, {
+      orderId: order.id!, receivedBy: barman.id, locationId: bar.id, lines: [{ productId: p.id!, qtyReceived: 5 }],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Cette commande ne concerne pas votre emplacement');
   });
 });

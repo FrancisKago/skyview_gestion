@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { orders, orderLines, products } from '@/db/schema';
+import { orders, orderLines, products, stockMovements } from '@/db/schema';
 import type { AnyDb } from '@/db';
 import { round3 } from '@/lib/units';
 
@@ -88,6 +88,66 @@ export async function deliverOrder(db: AnyDb, input: DeliverOrderInput):
   }
   await db.update(orders)
     .set({ status: 'livree', deliveredBy: input.deliveredBy, deliveredAt: new Date() })
+    .where(eq(orders.id, input.orderId));
+  return { ok: true };
+}
+
+export interface ReceiveOrderInput {
+  orderId: number;
+  receivedBy: number;
+  locationId: number | null;
+  lines: Array<{ productId: number; qtyReceived: number }>;
+}
+
+// Compromis assumés v1 (documentés, non bloquants), même logique que deliverOrder ci-dessus :
+// - TOCTOU : la vérification du statut et les écritures ne sont pas enveloppées dans une
+//   transaction ; deux réceptions strictement simultanées pourraient toutes deux passer le
+//   contrôle "livree". Acceptable pour un seul barman/cuisinier par emplacement à la fois.
+// - Réception à zéro : qtyReceived = 0 sur toutes les lignes est acceptée (rien reçu du tout) ;
+//   la commande passe "receptionnee" sans qu'aucun mouvement de stock ne soit créé.
+export async function receiveOrder(db: AnyDb, input: ReceiveOrderInput):
+  Promise<{ ok: boolean; error?: string }> {
+  const [order] = await db.select().from(orders).where(eq(orders.id, input.orderId));
+  if (!order) return { ok: false, error: 'Commande introuvable' };
+  if (order.status !== 'livree') {
+    return { ok: false, error: "Cette commande n'est pas en attente de réception" };
+  }
+  // Un barman/cuisinier ne peut réceptionner que les commandes de son propre emplacement ;
+  // input.locationId est null côté admin (pas de restriction dans ce cas).
+  if (input.locationId != null && order.locationId !== input.locationId) {
+    return { ok: false, error: 'Cette commande ne concerne pas votre emplacement' };
+  }
+  // Rejette les quantités négatives ET non finies (NaN/Infinity forgées) AVANT toute
+  // écriture : cf. convention de src/lib/orders.ts#deliverOrder.
+  if (input.lines.some((l) => !Number.isFinite(l.qtyReceived) || l.qtyReceived < 0)) {
+    return { ok: false, error: 'Les quantités reçues ne peuvent pas être négatives' };
+  }
+  // Correspondance EXACTE avec les lignes de la commande : cf. deliverOrder ci-dessus.
+  const existing: Array<{ productId: number }> =
+    await db.select({ productId: orderLines.productId }).from(orderLines)
+      .where(eq(orderLines.orderId, input.orderId));
+  const expectedIds = new Set(existing.map((l) => l.productId));
+  const submittedIds = new Set(input.lines.map((l) => l.productId));
+  if (expectedIds.size !== submittedIds.size
+    || [...expectedIds].some((id) => !submittedIds.has(id))) {
+    return { ok: false, error: 'Lignes de réception incohérentes avec la commande' };
+  }
+  for (const line of input.lines) {
+    await db.update(orderLines)
+      .set({ qtyReceived: String(line.qtyReceived) })
+      .where(and(eq(orderLines.orderId, input.orderId), eq(orderLines.productId, line.productId)));
+  }
+  // C'est ICI que le stock bouge (règle métier : à la confirmation, pas à la livraison).
+  const movements = input.lines.filter((l) => l.qtyReceived > 0).map((l) => ({
+    productId: l.productId, locationId: order.locationId, type: 'reception' as const,
+    qty: String(l.qtyReceived), refType: 'order', refId: order.id, userId: input.receivedBy,
+  }));
+  // drizzle jette une erreur sur .values([]) : on saute l'insert si tout est à zéro.
+  if (movements.length) {
+    await db.insert(stockMovements).values(movements);
+  }
+  await db.update(orders)
+    .set({ status: 'receptionnee', receivedBy: input.receivedBy, receivedAt: new Date() })
     .where(eq(orders.id, input.orderId));
   return { ok: true };
 }

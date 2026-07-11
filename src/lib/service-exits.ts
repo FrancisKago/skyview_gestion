@@ -12,7 +12,8 @@ export interface RecordServiceExitInput {
 }
 
 // Valide un YYYY-MM-DD réel (rejette '2026-02-31', 'not-a-date', etc.), pas
-// seulement la forme de la chaîne : cf. convention de src/lib/products.ts.
+// seulement la forme de la chaîne : l'aller-retour via Date.UTC détecte les
+// débordements de calendrier qu'une simple regex laisserait passer.
 function isValidDateString(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const [y, m, d] = s.split('-').map(Number);
@@ -25,6 +26,12 @@ function isValidDateString(s: string): boolean {
 // vérifier pour détecter un doublon. La protection contre une double soumission (double-clic)
 // est donc laissée au client (état "pending" du bouton) ; un vrai double envoi créerait deux
 // sorties distinctes. Acceptable pour v1 avec un seul barman/cuisinier par emplacement à la fois.
+// Ordre des écritures (sans transaction) : serviceExits → stockMovements → serviceExitLines.
+// Les mouvements (qui font foi pour le stock) sont insérés AVANT les lignes de détail
+// (affichage seul) : un échec en cours de séquence laisse alors le stock CORRECT avec
+// seulement le détail manquant. Risque résiduel accepté v1 : sortie créée mais crash avant
+// les mouvements → le réessai de l'utilisateur crée une seconde sortie (la première reste
+// vide, sans effet sur le stock).
 export async function recordServiceExit(db: AnyDb, input: RecordServiceExitInput):
   Promise<{ ok: boolean; warnings?: string[]; error?: string }> {
   const rawLines = input.lines.filter((l) => l.productId);
@@ -53,6 +60,9 @@ export async function recordServiceExit(db: AnyDb, input: RecordServiceExitInput
 
   // Avertissements stock négatif (règle métier : alerter sans bloquer, une sortie réelle
   // ne doit jamais être refusée pour cause d'écart de stock théorique).
+  // Compromis assumés : requêtes getProductStock séquentielles (quelques lignes par sortie,
+  // pas de batch nécessaire) et lecture non transactionnelle (TOCTOU) — l'avertissement est
+  // purement informatif, un écart de course ne fausse jamais les écritures.
   const warnings: string[] = [];
   for (const [productId, qty] of byProduct) {
     const current = await getProductStock(db, input.locationId, productId);
@@ -65,15 +75,15 @@ export async function recordServiceExit(db: AnyDb, input: RecordServiceExitInput
   const [exit] = await db.insert(serviceExits).values({
     locationId: input.locationId, serviceDate: input.serviceDate, createdBy: input.createdBy,
   }).returning();
-  await db.insert(serviceExitLines).values(
-    [...byProduct.entries()].map(([productId, qty]) => ({
-      serviceExitId: exit.id, productId, qty: String(qty),
-    })),
-  );
   await db.insert(stockMovements).values(
     [...byProduct.entries()].map(([productId, qty]) => ({
       productId, locationId: input.locationId, type: 'sortie_service' as const,
       qty: String(-qty), refType: 'service_exit', refId: exit.id, userId: input.createdBy,
+    })),
+  );
+  await db.insert(serviceExitLines).values(
+    [...byProduct.entries()].map(([productId, qty]) => ({
+      serviceExitId: exit.id, productId, qty: String(qty),
     })),
   );
   return { ok: true, warnings };

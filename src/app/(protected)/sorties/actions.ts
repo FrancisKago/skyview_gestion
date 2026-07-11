@@ -46,5 +46,8 @@ export async function recordExitAction(_prev: ExitFormState, formData: FormData)
   }
   if (!res.ok) return { error: res.error };
   revalidatePath('/sorties');
+  // Le stock de l'emplacement vient de bouger : la page /stock (Tâche 17) doit refléter
+  // les nouvelles quantités dès sa prochaine visite.
+  revalidatePath('/stock');
   return { success: true, warnings: res.warnings };
 }

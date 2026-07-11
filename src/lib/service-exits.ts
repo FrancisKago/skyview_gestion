@@ -2,6 +2,7 @@ import { inArray } from 'drizzle-orm';
 import { serviceExits, serviceExitLines, stockMovements, products } from '@/db/schema';
 import { getProductStock } from './stock';
 import { round3 } from './units';
+import { isValidDateString } from './dates';
 import type { AnyDb } from '@/db';
 
 export interface RecordServiceExitInput {
@@ -9,16 +10,6 @@ export interface RecordServiceExitInput {
   serviceDate: string;
   createdBy: number;
   lines: Array<{ productId: number; qty: number }>;
-}
-
-// Valide un YYYY-MM-DD réel (rejette '2026-02-31', 'not-a-date', etc.), pas
-// seulement la forme de la chaîne : l'aller-retour via Date.UTC détecte les
-// débordements de calendrier qu'une simple regex laisserait passer.
-function isValidDateString(s: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split('-').map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
 }
 
 // v1 : pas de garde d'idempotence possible ici (contrairement à receiveOrder) — chaque appel

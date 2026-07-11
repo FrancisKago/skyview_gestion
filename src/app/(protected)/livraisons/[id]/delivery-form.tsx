@@ -16,7 +16,8 @@ export function DeliveryForm({ orderId, lines }: { orderId: number; lines: Line[
         <div key={l.productId} className="bg-white rounded-xl shadow p-3 text-sm space-y-2">
           <p className="font-semibold">{l.name} — demandé : {l.qtyRequested} {l.baseUnit}</p>
           <input type="hidden" name="lineProduct" value={l.productId} />
-          <input type="hidden" name="linePackSize" value={l.packSize ?? ''} />
+          {/* packSize volontairement absent du formulaire : la conversion utilise
+              la valeur en base côté serveur (cf. ../actions.ts). */}
           <div className="flex gap-2 items-center">
             {l.packSize ? (
               <>

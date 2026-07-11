@@ -1,7 +1,9 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { inArray } from 'drizzle-orm';
 import { db } from '@/db';
+import { products } from '@/db/schema';
 import { requireRole } from '@/lib/session';
 import { deliverOrder } from '@/lib/orders';
 import { formNumber } from '@/lib/forms';
@@ -28,7 +30,6 @@ export async function deliverOrderAction(_prev: DeliveryFormState, formData: For
   const productIds = formData.getAll('lineProduct').map(parse);
   const packs = formData.getAll('linePacks').map(parse);
   const units = formData.getAll('lineUnits').map(parse);
-  const packSizes = formData.getAll('linePackSize').map(parse);
 
   if (productIds.some((v) => v == null)) {
     return { error: 'Ligne de livraison invalide' };
@@ -36,18 +37,27 @@ export async function deliverOrderAction(_prev: DeliveryFormState, formData: For
   if (packs.some((v) => v == null) || units.some((v) => v == null)) {
     return { error: 'Quantité livrée invalide sur une ligne' };
   }
-
-  const lines = productIds.map((productId, i) => ({
-    productId: productId as number,
-    qtyDelivered: totalBase({
-      packs: packs[i] as number,
-      units: units[i] as number,
-      packSize: packSizes[i],
-    }),
-  }));
+  const ids = productIds as number[];
 
   let res: Awaited<ReturnType<typeof deliverOrder>>;
   try {
+    // packSize lu en base et non depuis un champ caché : un client forgé ne doit pas
+    // pouvoir gonfler la conversion casier → bouteilles.
+    const prods = ids.length
+      ? await db.select({ id: products.id, packSize: products.packSize }).from(products)
+          .where(inArray(products.id, ids))
+      : [];
+    const packSizeById = new Map(
+      prods.map((p) => [p.id, p.packSize ? Number(p.packSize) : null]),
+    );
+    const lines = ids.map((productId, i) => ({
+      productId,
+      qtyDelivered: totalBase({
+        packs: packs[i] as number,
+        units: units[i] as number,
+        packSize: packSizeById.get(productId) ?? null,
+      }),
+    }));
     res = await deliverOrder(db, { orderId, deliveredBy: session.userId, lines });
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser

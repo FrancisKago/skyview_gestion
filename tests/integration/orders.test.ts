@@ -118,6 +118,53 @@ describe('deliverOrder', () => {
     expect(res.error).toBe('Commande introuvable');
   });
 
+  it('refuse une livraison qui omet une ligne de la commande', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    const riz = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id,
+      lines: [
+        { productId: castel.id!, qtyRequested: 12 },
+        { productId: riz.id!, qtyRequested: 5 },
+      ],
+    });
+    // Une seule ligne soumise sur les deux de la commande → refus, rien n'est écrit
+    const res = await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id,
+      lines: [{ productId: castel.id!, qtyDelivered: 12 }],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Lignes de livraison incohérentes avec la commande');
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('en_attente');
+    const lines = await db.select().from(orderLines).where(eq(orderLines.orderId, order.id!));
+    expect(lines.every((l) => l.qtyDelivered === null)).toBe(true);
+  });
+
+  it('refuse une livraison contenant un produit étranger à la commande', async () => {
+    const db = await createTestDb();
+    const { bar, barman, magasinier } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    const riz = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    const order = await createOrder(db, {
+      locationId: bar.id, createdBy: barman.id,
+      lines: [{ productId: castel.id!, qtyRequested: 12 }],
+    });
+    const res = await deliverOrder(db, {
+      orderId: order.id!, deliveredBy: magasinier.id,
+      lines: [
+        { productId: castel.id!, qtyDelivered: 12 },
+        { productId: riz.id!, qtyDelivered: 3 }, // pas dans la commande
+      ],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Lignes de livraison incohérentes avec la commande');
+    const [o] = await db.select().from(orders).where(eq(orders.id, order.id!));
+    expect(o.status).toBe('en_attente');
+  });
+
   it('refuse une quantité livrée négative ou non finie', async () => {
     const db = await createTestDb();
     const { bar, barman, magasinier } = await seedBase(db);

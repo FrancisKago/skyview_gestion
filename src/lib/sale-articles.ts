@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import { saleArticles, recipeLines } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
+import { saleArticles, recipeLines, products } from '@/db/schema';
 import type { AnyDb } from '@/db';
 
 export interface SaleArticleInput {
@@ -24,11 +24,25 @@ export async function saveSaleArticle(db: AnyDb, input: SaleArticleInput):
   if (existing && existing.id !== input.id) {
     return { ok: false, error: 'Ce nom caisse existe déjà' };
   }
+  // Vérification d'existence des produits AVANT toute écriture (cf. le check
+  // nom caisse ci-dessus) : sans elle, la contrainte FK de recipe_lines ne
+  // claquerait qu'APRÈS l'insert/update de l'article et le delete des lignes,
+  // laissant un article orphelin ou une fiche vidée.
+  const productIds = [...new Set(input.lines.map((l) => l.productId))];
+  const found = await db.select({ id: products.id }).from(products)
+    .where(inArray(products.id, productIds));
+  if (found.length !== productIds.length) {
+    return { ok: false, error: 'Produit inconnu dans la fiche' };
+  }
   let id = input.id;
   if (id) {
     await db.update(saleArticles)
       .set({ cashName, locationId: input.locationId })
       .where(eq(saleArticles.id, id));
+    // Remplacement delete-puis-insert non transactionnel : le driver neon-http
+    // ne supporte pas les transactions (compromis assumé v1). Une panne entre
+    // le delete et l'insert laisserait la fiche vide — les validations
+    // ci-dessus réduisent la fenêtre aux seules erreurs d'infrastructure.
     await db.delete(recipeLines).where(eq(recipeLines.saleArticleId, id));
   } else {
     const [row] = await db.insert(saleArticles)

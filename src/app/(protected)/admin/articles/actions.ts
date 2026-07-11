@@ -11,19 +11,25 @@ export async function saveSaleArticleAction(_prev: ArticleFormState, formData: F
   Promise<ArticleFormState> {
   await requireRole(['admin']);
   const num = (k: string) => formNumber(formData, k);
-  // On ne garde que les lignes où productId ET qty sont des nombres finis
-  // renseignés (Number.isFinite écarte NaN/Infinity issus d'un champ vide ou forgé).
-  const productIds = formData.getAll('lineProduct').map((v) => {
-    const n = Number(v);
+  // Champ de ligne → nombre fini ou null (vide/forgé → null), même contrat que formNumber.
+  const parse = (v: FormDataEntryValue): number | null => {
+    const s = String(v).trim();
+    if (s === '') return null;
+    const n = Number(s);
     return Number.isFinite(n) ? n : null;
-  });
-  const qtys = formData.getAll('lineQty').map((v) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  });
-  const lines = productIds
-    .map((productId, i) => ({ productId, qty: qtys[i] }))
-    .filter((l): l is { productId: number; qty: number } => !!l.productId && !!l.qty);
+  };
+  const productIds = formData.getAll('lineProduct').map(parse);
+  const qtys = formData.getAll('lineQty').map(parse);
+  const rows = productIds.map((productId, i) => ({ productId, qty: qtys[i] ?? null }));
+  // Ligne partiellement remplie (produit sans quantité ou l'inverse) : erreur
+  // explicite plutôt qu'un abandon silencieux de la ligne. Les lignes
+  // entièrement vides restent ignorées (emplacements de formulaire inutilisés).
+  if (rows.some((r) => (r.productId == null) !== (r.qty == null))) {
+    return { error: 'Ligne incomplète : chaque ingrédient doit avoir un produit ET une quantité' };
+  }
+  const lines = rows.filter(
+    (r): r is { productId: number; qty: number } => r.productId != null && r.qty != null,
+  );
   let res: Awaited<ReturnType<typeof saveSaleArticle>>;
   try {
     res = await saveSaleArticle(db, {

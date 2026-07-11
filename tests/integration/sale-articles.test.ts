@@ -50,6 +50,23 @@ describe('articles de vente', () => {
       cashName: 'W', locationId: bar.id, lines: [{ productId: p.id!, qty: Infinity }],
     })).ok).toBe(false);
   });
+  it('refuse un produit inconnu dans la fiche', async () => {
+    const db = await createTestDb();
+    const { bar } = await seedBase(db);
+    const res = await saveSaleArticle(db, {
+      cashName: 'Fantôme', locationId: bar.id, lines: [{ productId: 9999, qty: 1 }],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Produit inconnu dans la fiche');
+  });
+  it("refuse un nom caisse composé uniquement d'espaces", async () => {
+    const db = await createTestDb();
+    const { bar } = await seedBase(db);
+    const p = await saveProduct(db, { name: 'Riz', baseUnit: 'kg', purchasePrice: 500 });
+    expect((await saveSaleArticle(db, {
+      cashName: '   ', locationId: bar.id, lines: [{ productId: p.id!, qty: 1 }],
+    })).ok).toBe(false);
+  });
   it('refuse un nom caisse déjà utilisé', async () => {
     const db = await createTestDb();
     const { bar } = await seedBase(db);

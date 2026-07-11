@@ -15,6 +15,13 @@
       "when": 1783803745455,
       "tag": "0001_stock_movements_index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783804345253,
+      "tag": "0002_stock_movements_index_order",
+      "breakpoints": true
     }
   ]
 }

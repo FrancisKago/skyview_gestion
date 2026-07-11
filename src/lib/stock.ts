@@ -13,6 +13,9 @@ export interface StockLine {
   belowThreshold: boolean;
 }
 
+// NB : un produit sans AUCUN mouvement à l'emplacement est absent du résultat
+// (jamais bougé ≠ zéro après consommation : un produit reçu puis entièrement
+// consommé apparaît bien avec qty 0).
 export async function getLocationStock(db: AnyDb, locationId: number): Promise<StockLine[]> {
   const rows = await db.select({
     productId: products.id,
@@ -38,7 +41,8 @@ export async function getLocationStock(db: AnyDb, locationId: number): Promise<S
       qty,
       value: Math.round(qty * r.purchasePrice),
       alertThreshold: threshold,
-      belowThreshold: threshold != null && qty < threshold,
+      // L'alerte se déclenche AU seuil ou en dessous (décision produit).
+      belowThreshold: threshold != null && qty <= threshold,
     };
   });
 }

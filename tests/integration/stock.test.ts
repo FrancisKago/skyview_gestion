@@ -38,6 +38,20 @@ describe('getLocationStock', () => {
     expect(row.qty).toBe(-3);
     expect(row.belowThreshold).toBe(true);
   });
+
+  it('déclenche l\'alerte quand la quantité est exactement au seuil', async () => {
+    const db = await createTestDb();
+    const { bar, barman } = await seedBase(db);
+    const p = await saveProduct(db, {
+      name: 'Mutzig', baseUnit: 'bouteille', purchasePrice: 700, alertThreshold: 10,
+    });
+    await db.insert(stockMovements).values([
+      { productId: p.id!, locationId: bar.id, type: 'reception', qty: '10', userId: barman.id },
+    ]);
+    const [row] = await getLocationStock(db, bar.id);
+    expect(row.qty).toBe(10);
+    expect(row.belowThreshold).toBe(true); // alerte AU seuil ou en dessous
+  });
 });
 
 describe('getProductStock', () => {

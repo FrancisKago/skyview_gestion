@@ -88,7 +88,8 @@ export const stockMovements = pgTable('stock_movements', {
   userId: integer('user_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (table) => [
-  index('stock_movements_product_location_idx').on(table.productId, table.locationId),
+  // location_id en tête : getLocationStock filtre par emplacement seul.
+  index('stock_movements_location_product_idx').on(table.locationId, table.productId),
 ]);
 
 export const serviceExits = pgTable('service_exits', {

@@ -31,7 +31,7 @@ export function reconcile(
   const lines: ReconciliationLine[] = [];
   for (const productId of productIds) {
     const p = products.get(productId);
-    if (!p) continue;
+    if (!p) continue; // produit supprimé depuis — ne devrait pas arriver en usage normal, on l'ignore plutôt que de planter
     const theo = theoretical.get(productId) ?? 0;
     const decl = declared.get(productId) ?? 0;
     const gap = round3(decl - theo);

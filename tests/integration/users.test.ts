@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createTestDb, seedBase } from '../helpers/db';
-import { createUser } from '@/lib/users';
+import { createUser, setUserActive } from '@/lib/users';
 import { verifyPassword } from '@/lib/auth';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -27,5 +27,26 @@ describe('createUser', () => {
     await seedBase(db);
     // @ts-expect-error rôle volontairement invalide (simule un POST forgé)
     expect((await createUser(db, { name: 'X', username: 'hacker', password: 'motdepasse1', role: 'superadmin' })).ok).toBe(false);
+  });
+});
+
+describe('setUserActive', () => {
+  it('désactive puis réactive un utilisateur non-admin', async () => {
+    const db = await createTestDb();
+    const { barman } = await seedBase(db);
+    expect((await setUserActive(db, barman.id, false)).ok).toBe(true);
+    let [row] = await db.select().from(users).where(eq(users.id, barman.id));
+    expect(row.active).toBe(false);
+    expect((await setUserActive(db, barman.id, true)).ok).toBe(true);
+    [row] = await db.select().from(users).where(eq(users.id, barman.id));
+    expect(row.active).toBe(true);
+  });
+  it('refuse de désactiver le dernier admin actif', async () => {
+    const db = await createTestDb();
+    const { admin } = await seedBase(db); // seul admin du seed
+    const res = await setUserActive(db, admin.id, false);
+    expect(res.ok).toBe(false);
+    const [row] = await db.select().from(users).where(eq(users.id, admin.id));
+    expect(row.active).toBe(true);
   });
 });

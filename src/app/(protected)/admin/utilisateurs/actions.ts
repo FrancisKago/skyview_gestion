@@ -33,10 +33,14 @@ export async function toggleUserAction(formData: FormData) {
   await requireRole(['admin']);
   const userId = formNumber(formData, 'userId'); // finite ou null (garde-fou : userId forgé)
   if (userId == null) return;
+  let res: Awaited<ReturnType<typeof setUserActive>>;
   try {
-    await setUserActive(db, userId, formData.get('active') === 'true');
+    res = await setUserActive(db, userId, formData.get('active') === 'true');
   } catch {
     return;
   }
+  // Action de formulaire simple (sans useActionState) : pas d'affichage d'erreur,
+  // le garde-fou "dernier admin actif" protège la DB ; on ne revalide que sur succès.
+  if (!res.ok) return;
   revalidatePath('/admin/utilisateurs');
 }

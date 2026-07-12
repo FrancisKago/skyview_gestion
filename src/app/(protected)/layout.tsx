@@ -29,6 +29,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: '/admin/articles', label: 'Articles', icon: 'articles' },
     { href: '/admin/utilisateurs', label: 'Comptes', icon: 'utilisateurs' },
     { href: '/admin/ajustements', label: 'Ajustements', icon: 'ajustements' },
+    { href: '/admin/imports', label: 'Imports', icon: 'fichiers' },
   ],
 };
 

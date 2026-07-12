@@ -1,4 +1,4 @@
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { serviceExits, serviceExitLines, stockMovements, products } from '@/db/schema';
 import { getProductStock } from './stock';
 import { round3 } from './units';
@@ -10,21 +10,36 @@ export interface RecordServiceExitInput {
   serviceDate: string;
   createdBy: number;
   lines: Array<{ productId: number; qty: number }>;
+  // Jeton généré côté client (un par soumission de formulaire) : cf. garde d'idempotence
+  // ci-dessous. Optionnel pour ne pas casser les appels serveur internes existants.
+  clientToken?: string;
 }
 
-// v1 : pas de garde d'idempotence possible ici (contrairement à receiveOrder) — chaque appel
-// représente une NOUVELLE saisie de sortie de service, il n'y a pas de statut de commande à
-// vérifier pour détecter un doublon. La protection contre une double soumission (double-clic)
-// est donc laissée au client (état "pending" du bouton) ; un vrai double envoi créerait deux
-// sorties distinctes. Acceptable pour v1 avec un seul barman/cuisinier par emplacement à la fois.
+// Garde d'idempotence via jeton client (contrairement à receiveOrder, il n'y a pas de statut
+// de commande à vérifier ici — chaque appel représente une NOUVELLE saisie). Le formulaire
+// génère un UUID à l'affichage et le renvoie tel quel ; un double-submit (double-clic, retry
+// réseau) transmet donc deux fois le MÊME jeton. On vérifie d'abord si une sortie avec ce
+// jeton existe déjà : si oui, on ne réécrit rien et on renvoie un succès idempotent
+// (duplicate: true). Risque résiduel accepté v1 : course entre deux double-clics quasi
+// simultanés AVANT que le premier insert ne committe — la contrainte UNIQUE sur client_token
+// fait alors échouer le second insert avec une exception, rattrapée par le try/catch de
+// l'action serveur (src/app/(protected)/sorties/actions.ts) qui renvoie une erreur générique
+// au lieu de dupliquer le stock. Acceptable pour v1 avec un seul barman/cuisinier par
+// emplacement à la fois.
 // Ordre des écritures (sans transaction) : serviceExits → stockMovements → serviceExitLines.
 // Les mouvements (qui font foi pour le stock) sont insérés AVANT les lignes de détail
 // (affichage seul) : un échec en cours de séquence laisse alors le stock CORRECT avec
-// seulement le détail manquant. Risque résiduel accepté v1 : sortie créée mais crash avant
-// les mouvements → le réessai de l'utilisateur crée une seconde sortie (la première reste
-// vide, sans effet sur le stock).
+// seulement le détail manquant. Risque résiduel accepté v1 (hors double-submit, couvert
+// ci-dessus) : sortie créée mais crash avant les mouvements → le réessai de l'utilisateur
+// avec le MÊME jeton (le formulaire ne le régénère qu'après un succès) sera bloqué par la
+// contrainte UNIQUE — un jeton différent créerait une seconde sortie (la première reste vide).
 export async function recordServiceExit(db: AnyDb, input: RecordServiceExitInput):
-  Promise<{ ok: boolean; warnings?: string[]; error?: string }> {
+  Promise<{ ok: boolean; warnings?: string[]; error?: string; duplicate?: boolean }> {
+  if (input.clientToken) {
+    const [existing] = await db.select({ id: serviceExits.id }).from(serviceExits)
+      .where(eq(serviceExits.clientToken, input.clientToken)).limit(1);
+    if (existing) return { ok: true, warnings: [], duplicate: true };
+  }
   const rawLines = input.lines.filter((l) => l.productId);
   if (!rawLines.length) return { ok: false, error: 'Saisissez au moins un produit sorti' };
   if (rawLines.some((l) => !Number.isFinite(l.qty) || !(l.qty > 0))) {
@@ -65,6 +80,7 @@ export async function recordServiceExit(db: AnyDb, input: RecordServiceExitInput
 
   const [exit] = await db.insert(serviceExits).values({
     locationId: input.locationId, serviceDate: input.serviceDate, createdBy: input.createdBy,
+    clientToken: input.clientToken ?? null,
   }).returning();
   await db.insert(stockMovements).values(
     [...byProduct.entries()].map(([productId, qty]) => ({

@@ -98,6 +98,10 @@ export const serviceExits = pgTable('service_exits', {
   serviceDate: date('service_date').notNull(),
   createdBy: integer('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Jeton généré côté client (un par soumission de formulaire) : garde d'idempotence
+  // contre le double-submit. Nullable — v1 ne l'exige pas pour les écritures serveur
+  // internes (aucune n'existe aujourd'hui, mais on ne veut pas bloquer un futur usage).
+  clientToken: text('client_token').unique(),
 });
 
 export const serviceExitLines = pgTable('service_exit_lines', {

@@ -31,6 +31,9 @@ export async function recordExitAction(_prev: ExitFormState, formData: FormData)
   const lines = rows.filter(
     (r): r is { productId: number; qty: number } => r.productId != null && r.qty != null,
   );
+  // Vide (jamais rempli côté client) → undefined plutôt qu'une chaîne vide : recordServiceExit
+  // n'active la garde d'idempotence que si un jeton est fourni.
+  const clientToken = String(formData.get('clientToken') ?? '').trim() || undefined;
   let res: Awaited<ReturnType<typeof recordServiceExit>>;
   try {
     res = await recordServiceExit(db, {
@@ -38,6 +41,7 @@ export async function recordExitAction(_prev: ExitFormState, formData: FormData)
       serviceDate,
       createdBy: session.userId,
       lines,
+      clientToken,
     });
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser

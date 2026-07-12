@@ -4,7 +4,7 @@ import { createTestDb, seedBase } from '../helpers/db';
 import { saveProduct } from '@/lib/products';
 import { recordServiceExit } from '@/lib/service-exits';
 import { getLocationStock } from '@/lib/stock';
-import { stockMovements } from '@/db/schema';
+import { stockMovements, serviceExits } from '@/db/schema';
 
 describe('recordServiceExit', () => {
   it('crée des mouvements négatifs et signale un stock devenu négatif sans bloquer', async () => {
@@ -83,5 +83,57 @@ describe('recordServiceExit', () => {
       lines: [{ productId: castel.id!, qty: NaN }],
     });
     expect(res.ok).toBe(false);
+  });
+
+  it('un même jeton client soumis deux fois ne crée qu\'une seule sortie (idempotence)', async () => {
+    const db = await createTestDb();
+    const { bar, barman } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    await db.insert(stockMovements).values({
+      productId: castel.id!, locationId: bar.id, type: 'reception', qty: '20', userId: barman.id,
+    });
+    const input = {
+      locationId: bar.id, serviceDate: '2026-07-10', createdBy: barman.id,
+      lines: [{ productId: castel.id!, qty: 4 }], clientToken: 'token-abc',
+    };
+    const first = await recordServiceExit(db, input);
+    expect(first.ok).toBe(true);
+    expect(first.duplicate).toBeUndefined();
+
+    const second = await recordServiceExit(db, input);
+    expect(second.ok).toBe(true);
+    expect(second.duplicate).toBe(true);
+
+    const stock = await getLocationStock(db, bar.id);
+    expect(stock[0].qty).toBe(16); // 20 - 4, décrémenté une seule fois
+
+    const exits = await db.select().from(serviceExits);
+    expect(exits).toHaveLength(1);
+  });
+
+  it('des jetons différents créent bien deux sorties distinctes', async () => {
+    const db = await createTestDb();
+    const { bar, barman } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    await db.insert(stockMovements).values({
+      productId: castel.id!, locationId: bar.id, type: 'reception', qty: '20', userId: barman.id,
+    });
+    const first = await recordServiceExit(db, {
+      locationId: bar.id, serviceDate: '2026-07-10', createdBy: barman.id,
+      lines: [{ productId: castel.id!, qty: 4 }], clientToken: 'token-1',
+    });
+    const second = await recordServiceExit(db, {
+      locationId: bar.id, serviceDate: '2026-07-10', createdBy: barman.id,
+      lines: [{ productId: castel.id!, qty: 3 }], clientToken: 'token-2',
+    });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(second.duplicate).toBeUndefined();
+
+    const stock = await getLocationStock(db, bar.id);
+    expect(stock[0].qty).toBe(13); // 20 - 4 - 3
+
+    const exits = await db.select().from(serviceExits);
+    expect(exits).toHaveLength(2);
   });
 });

@@ -3,6 +3,7 @@ import { orders, orderLines, products, locations } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { requireRole } from '@/lib/session';
+import { PageHeader } from '@/components/ui/page-header';
 import { DeliveryForm } from './delivery-form';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ export default async function LivraisonPage({ params }: { params: Promise<{ id: 
     .where(eq(orderLines.orderId, order.id));
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold">Livraison — Commande #{order.id} ({order.locName})</h1>
+      <PageHeader title={`Livraison — Commande #${order.id} (${order.locName})`} />
       <DeliveryForm orderId={order.id} lines={lines.map((l) => ({
         productId: l.productId, name: l.name, baseUnit: l.baseUnit,
         qtyRequested: Number(l.qtyRequested),

@@ -1,54 +1,65 @@
 'use client';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { validateInventoryAction } from './actions';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, DateField } from '@/components/ui/fields';
+import { SearchBox } from '@/components/ui/search-box';
+import { matchesQuery } from '@/lib/text';
 
 type Line = { productId: number; name: string; baseUnit: string; qtyTheoretical: number };
 
 export function InventoryForm({ stock, today }: { stock: Line[]; today: string }) {
   const [state, action, pending] = useActionState(validateInventoryAction, {});
+  const [query, setQuery] = useState('');
 
   if (state.gaps) {
     return (
-      <div className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
-        <p className="font-bold text-green-700">✅ Inventaire validé — écarts :</p>
-        <ul className="divide-y">
+      <Card className="p-4 space-y-2 text-sm">
+        <p className="font-bold text-success">Inventaire validé — écarts :</p>
+        <ul className="divide-y divide-line">
           {state.gaps.map((g) => (
             <li key={g.productId} className="py-2 flex justify-between">
-              <span>{g.name} : {g.qtyTheoretical} → {g.qtyCounted}</span>
-              <span className={g.gap === 0 ? 'text-gray-500' : 'text-red-600 font-semibold'}>
+              <span className="text-cream">{g.name} : <span className="tnum">{g.qtyTheoretical}</span> → <span className="tnum">{g.qtyCounted}</span></span>
+              <span className={g.gap === 0 ? 'text-muted tnum' : 'text-negative font-semibold tnum'}>
                 {g.gap > 0 ? '+' : ''}{g.gap} ({g.gapValue.toLocaleString('fr-FR')} FCFA)
               </span>
             </li>
           ))}
           {state.gaps.length === 0 && (
-            <li className="py-2 text-gray-500">Aucun produit compté.</li>
+            <li className="py-2 text-muted">Aucun produit compté.</li>
           )}
         </ul>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <form action={action} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
+    <form action={action} className="bg-card border border-line rounded-xl p-4 space-y-2 text-sm">
       <label className="flex items-center gap-2">
-        <span className="font-semibold">Date :</span>
-        <input name="inventoryDate" type="date" defaultValue={today} className="border rounded p-2" />
+        <span className="font-semibold text-cream">Date :</span>
+        <DateField name="inventoryDate" defaultValue={today} />
       </label>
-      {stock.map((l) => (
-        <div key={l.productId} className="flex justify-between items-center gap-2 border-b py-1">
-          <span>{l.name} <span className="text-gray-400">(théorique : {l.qtyTheoretical} {l.baseUnit})</span></span>
-          <input type="hidden" name="lineProduct" value={l.productId} />
-          <input name="lineCounted" type="number" step="0.001" min="0" placeholder="compté"
-            className="border rounded p-2 w-24 text-right" inputMode="decimal" />
-        </div>
-      ))}
+      <SearchBox value={query} onChange={setQuery} />
+      {stock.map((l) => {
+        const match = matchesQuery(l.name, query);
+        return (
+          <div key={l.productId}
+            className={match ? 'flex justify-between items-center gap-2 border-b border-line py-1' : 'hidden'}>
+            <span className="text-cream">{l.name} <span className="text-muted">(théorique : <span className="tnum">{l.qtyTheoretical}</span> {l.baseUnit})</span></span>
+            <input type="hidden" name="lineProduct" value={l.productId} />
+            <Input name="lineCounted" type="number" step="0.001" min="0" placeholder="compté"
+              className="w-24 text-right tnum" inputMode="decimal" />
+          </div>
+        );
+      })}
       {stock.length === 0 && (
-        <p className="text-gray-500">Aucun mouvement de stock pour l&apos;instant.</p>
+        <p className="text-muted">Aucun mouvement de stock pour l&apos;instant.</p>
       )}
-      {state.error && <p className="text-red-600">{state.error}</p>}
-      <button disabled={pending} className="bg-indigo-600 text-white rounded p-2 w-full font-semibold">
+      {state.error && <p className="text-negative">{state.error}</p>}
+      <Button type="submit" pending={pending} className="w-full">
         Valider l&apos;inventaire
-      </button>
+      </Button>
     </form>
   );
 }

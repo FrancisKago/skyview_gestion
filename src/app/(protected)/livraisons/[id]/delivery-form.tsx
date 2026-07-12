@@ -1,6 +1,9 @@
 'use client';
 import { useActionState } from 'react';
 import { deliverOrderAction } from '../actions';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/fields';
 
 type Line = {
   productId: number; name: string; baseUnit: string; qtyRequested: number;
@@ -13,32 +16,31 @@ export function DeliveryForm({ orderId, lines }: { orderId: number; lines: Line[
     <form action={action} className="space-y-3">
       <input type="hidden" name="orderId" value={orderId} />
       {lines.map((l) => (
-        <div key={l.productId} className="bg-white rounded-xl shadow p-3 text-sm space-y-2">
-          <p className="font-semibold">{l.name} — demandé : {l.qtyRequested} {l.baseUnit}</p>
+        <Card key={l.productId} className="p-3 space-y-2 text-sm">
+          <p className="font-semibold text-cream">{l.name} — <span className="text-muted font-normal">demandé : <span className="tnum">{l.qtyRequested}</span> {l.baseUnit}</span></p>
           <input type="hidden" name="lineProduct" value={l.productId} />
           {/* packSize volontairement absent du formulaire : la conversion utilise
               la valeur en base côté serveur (cf. ../actions.ts). */}
           <div className="flex gap-2 items-center">
             {l.packSize ? (
               <>
-                <input name="linePacks" type="number" step="0.5" min="0" defaultValue={0}
-                  className="border rounded p-2 w-20" inputMode="decimal" />
-                <span>{l.packName}(s) de {l.packSize} +</span>
+                <Input name="linePacks" type="number" step="0.5" min="0" defaultValue={0}
+                  className="w-20 tnum" inputMode="decimal" />
+                <span className="text-muted">{l.packName}(s) de {l.packSize} +</span>
               </>
             ) : (
               <input type="hidden" name="linePacks" value="0" />
             )}
-            <input name="lineUnits" type="number" step="0.001" min="0" defaultValue={0}
-              className="border rounded p-2 w-24" inputMode="decimal" />
-            <span>{l.baseUnit}(s)</span>
+            <Input name="lineUnits" type="number" step="0.001" min="0" defaultValue={0}
+              className="w-24 tnum" inputMode="decimal" />
+            <span className="text-muted">{l.baseUnit}(s)</span>
           </div>
-        </div>
+        </Card>
       ))}
-      {state.error && <p className="text-red-600">{state.error}</p>}
-      <button disabled={pending}
-        className="bg-indigo-600 text-white rounded-lg p-3 w-full font-semibold">
+      {state.error && <p className="text-negative">{state.error}</p>}
+      <Button type="submit" pending={pending} className="w-full">
         Enregistrer la livraison
-      </button>
+      </Button>
     </form>
   );
 }

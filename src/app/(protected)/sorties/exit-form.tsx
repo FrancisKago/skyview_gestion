@@ -71,7 +71,7 @@ export function ExitForm({ groups, today }: { groups: Group[]; today: string }) 
       {state.warnings?.map((w: string, i: number) => (
         <ListRow key={i} tone="warning" className="text-warning text-sm">{w}</ListRow>
       ))}
-      <Button pending={pending} className="w-full">
+      <Button type="submit" pending={pending} className="w-full">
         Valider les sorties du service
       </Button>
     </form>

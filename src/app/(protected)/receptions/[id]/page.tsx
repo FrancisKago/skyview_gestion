@@ -3,6 +3,7 @@ import { orders, orderLines, products } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { requireRole } from '@/lib/session';
+import { PageHeader } from '@/components/ui/page-header';
 import { ReceptionForm } from './reception-form';
 
 export const dynamic = 'force-dynamic';
@@ -22,8 +23,8 @@ export default async function ReceptionPage({ params }: { params: Promise<{ id: 
     .where(eq(orderLines.orderId, order.id));
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold">Confirmer la réception — Commande #{order.id}</h1>
-      <p className="text-sm text-gray-600">
+      <PageHeader title={`Confirmer la réception — Commande #${order.id}`} />
+      <p className="text-sm text-muted">
         Comptez ce que vous recevez réellement. Un écart avec la quantité livrée sera tracé.
       </p>
       <ReceptionForm orderId={order.id} lines={lines.map((l) => ({

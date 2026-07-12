@@ -2,7 +2,7 @@ import { ReceiptText } from 'lucide-react';
 import Link from 'next/link';
 import { db } from '@/db';
 import { saleArticles, recipeLines, products, locations } from '@/db/schema';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { requireRole } from '@/lib/session';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
@@ -33,13 +33,25 @@ export default async function ArticlesPage({ searchParams }: {
     productName: products.name, baseUnit: products.baseUnit,
   }).from(recipeLines).innerJoin(products, eq(recipeLines.productId, products.id));
   const prods = await db.select().from(products).where(eq(products.active, true)).orderBy(asc(products.name));
+  // Produits référencés par la fiche en cours d'édition mais désactivés depuis :
+  // sans eux, le <Select> de la ligne n'aurait pas d'<option> correspondante et
+  // retomberait silencieusement sur « — produit — », rendant la fiche impossible
+  // à sauver (« Ligne incomplète … » au submit).
+  const missingIds = [...new Set(editingLines.map((l) => l.productId))]
+    .filter((pid) => !prods.some((p) => p.id === pid));
+  const inactiveRefs = missingIds.length
+    ? await db.select().from(products).where(inArray(products.id, missingIds))
+    : [];
   const locs = await db.select().from(locations);
   return (
     <div className="space-y-4">
       <PageHeader title="Articles de vente & fiches techniques" />
       <ArticleForm
         key={editing?.id ?? 'new'}
-        products={prods.map((p) => ({ id: p.id, name: p.name, baseUnit: p.baseUnit }))}
+        products={[
+          ...prods.map((p) => ({ id: p.id, name: p.name, baseUnit: p.baseUnit })),
+          ...inactiveRefs.map((p) => ({ id: p.id, name: `${p.name} (inactif)`, baseUnit: p.baseUnit })),
+        ]}
         locations={locs.filter((l) => l.type !== 'magasin').map((l) => ({ id: l.id, name: l.name }))}
         initial={editing ? {
           id: editing.id, cashName: editing.cashName, locationId: editing.locationId,

@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
 import { formNumber } from '@/lib/forms';
@@ -11,10 +12,11 @@ export async function saveProductAction(_prev: ProductFormState, formData: FormD
   Promise<ProductFormState> {
   await requireRole(['admin']);
   const num = (k: string) => formNumber(formData, k);
+  const id = num('id') ?? undefined;
   let res: Awaited<ReturnType<typeof saveProduct>>;
   try {
     res = await saveProduct(db, {
-      id: num('id') ?? undefined,
+      id,
       name: String(formData.get('name') ?? ''),
       category: String(formData.get('category') ?? ''),
       baseUnit: String(formData.get('baseUnit') ?? ''),
@@ -22,7 +24,7 @@ export async function saveProductAction(_prev: ProductFormState, formData: FormD
       packSize: num('packSize'),
       purchasePrice: num('purchasePrice') ?? 0,
       alertThreshold: num('alertThreshold'),
-      active: formData.get('active') !== 'off',
+      active: formData.get('active') === 'on',
     });
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser
@@ -31,5 +33,8 @@ export async function saveProductAction(_prev: ProductFormState, formData: FormD
   }
   if (!res.ok) return { error: res.error };
   revalidatePath('/admin/produits');
+  // Après une mise à jour, retirer ?edit de l'URL. redirect() lance
+  // NEXT_REDIRECT : il doit rester HORS du try/catch ci-dessus.
+  if (id != null) redirect('/admin/produits');
   return {};
 }

@@ -5,16 +5,22 @@ import { login } from './actions';
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, {});
   return (
-    <main className="min-h-dvh flex items-center justify-center p-4 bg-gray-50">
-      <form action={action} className="w-full max-w-sm bg-white rounded-2xl shadow p-6 space-y-4">
-        <h1 className="text-xl font-bold text-center">Skyview — Gestion de stock</h1>
-        <input name="username" placeholder="Identifiant" autoComplete="username"
-          className="w-full border rounded-lg p-3 text-lg" required />
-        <input name="password" type="password" placeholder="Mot de passe" autoComplete="current-password"
-          className="w-full border rounded-lg p-3 text-lg" required />
-        {state.error && <p className="text-red-600 text-sm">{state.error}</p>}
+    <main className="min-h-dvh flex items-center justify-center p-4 bg-night">
+      <form action={action}
+        className="w-full max-w-sm bg-card border border-line rounded-xl p-8 space-y-5">
+        <div className="text-center space-y-1">
+          <h1 className="font-display text-3xl font-bold text-cream">
+            Sky<span className="text-action">v</span>iew
+          </h1>
+          <p className="text-muted text-sm italic">Lounge — Gestion de stock</p>
+        </div>
+        <input name="username" placeholder="Identifiant" autoComplete="username" required
+          className="w-full bg-night border border-line rounded-[10px] p-3.5 text-lg text-cream placeholder:text-muted focus:outline-2 focus:outline-action" />
+        <input name="password" type="password" placeholder="Mot de passe" autoComplete="current-password" required
+          className="w-full bg-night border border-line rounded-[10px] p-3.5 text-lg text-cream placeholder:text-muted focus:outline-2 focus:outline-action" />
+        {state.error && <p className="text-negative text-sm">{state.error}</p>}
         <button disabled={pending}
-          className="w-full bg-indigo-600 text-white rounded-lg p-3 text-lg font-semibold disabled:opacity-50">
+          className="w-full min-h-12 bg-action hover:bg-action-hover text-white rounded-[10px] p-3 text-lg font-semibold disabled:opacity-50 transition-colors">
           {pending ? 'Connexion…' : 'Se connecter'}
         </button>
       </form>

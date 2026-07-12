@@ -8,6 +8,6 @@ export function Select({ className = '', children, ...rest }: React.SelectHTMLAt
   return <select className={`${FIELD} ${className}`} {...rest}>{children}</select>;
 }
 
-export function DateField({ className = '', ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+export function DateField({ className = '', ...rest }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   return <input type="date" className={`${FIELD} ${className}`} {...rest} />;
 }

@@ -19,6 +19,8 @@ ADMIN_PASSWORD=<mot-de-passe-fort> npm run db:seed
 npm run dev
 ```
 
+`db:migrate` et `db:seed` lisent automatiquement `.env.local` (DATABASE_URL, SESSION_SECRET). Seul `ADMIN_PASSWORD` reste à préfixer explicitement sur la commande `db:seed` : c'est un secret à usage unique (le mot de passe initial de l'admin), il n'est pas destiné à être stocké dans `.env.local`.
+
 L'application est alors disponible sur [http://localhost:3000](http://localhost:3000). Le compte admin créé par le seed permet ensuite de créer les autres comptes (magasinier, barman, cuisinier, comptable) depuis l'écran Utilisateurs.
 
 ## Scripts

@@ -1,8 +1,14 @@
-// src/db/seed.ts — usage : DATABASE_URL=... ADMIN_PASSWORD=... npx tsx src/db/seed.ts
+// src/db/seed.ts — usage : ADMIN_PASSWORD=... npx tsx src/db/seed.ts (DATABASE_URL lu depuis .env.local)
+import { config } from 'dotenv';
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import bcrypt from 'bcryptjs';
 import * as schema from './schema';
+
+// tsx (contrairement à Next.js) ne charge aucun fichier .env automatiquement :
+// on lit .env.local en priorité, avec .env en repli.
+config({ path: '.env.local' });
+config(); // .env en repli
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;

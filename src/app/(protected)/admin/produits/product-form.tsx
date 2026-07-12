@@ -3,6 +3,7 @@ import { useActionState } from 'react';
 import { saveProductAction } from './actions';
 import { Input } from '@/components/ui/fields';
 import { Button } from '@/components/ui/button';
+import { FormError } from '@/components/ui/form-error';
 
 export function ProductForm() {
   const [state, action, pending] = useActionState(saveProductAction, {});
@@ -15,7 +16,7 @@ export function ProductForm() {
       <Input name="packSize" type="number" step="0.001" placeholder="Taille (12)" />
       <Input name="purchasePrice" type="number" placeholder="Prix d'achat FCFA *" required />
       <Input name="alertThreshold" type="number" step="0.001" placeholder="Seuil d'alerte" />
-      {state.error && <p className="text-negative col-span-2">{state.error}</p>}
+      <div className="col-span-2"><FormError message={state.error} /></div>
       <Button type="submit" pending={pending} className="col-span-2">
         Enregistrer
       </Button>

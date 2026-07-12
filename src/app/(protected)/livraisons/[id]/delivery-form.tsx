@@ -4,6 +4,7 @@ import { deliverOrderAction } from '../actions';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/fields';
+import { FormError } from '@/components/ui/form-error';
 
 type Line = {
   productId: number; name: string; baseUnit: string; qtyRequested: number;
@@ -37,7 +38,7 @@ export function DeliveryForm({ orderId, lines }: { orderId: number; lines: Line[
           </div>
         </Card>
       ))}
-      {state.error && <p className="text-negative">{state.error}</p>}
+      <FormError message={state.error} />
       <Button type="submit" pending={pending} className="w-full">
         Enregistrer la livraison
       </Button>

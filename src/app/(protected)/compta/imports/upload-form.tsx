@@ -3,6 +3,7 @@ import { useActionState, useEffect, useRef } from 'react';
 import { uploadSalesAction } from './actions';
 import { DateField } from '@/components/ui/fields';
 import { Button } from '@/components/ui/button';
+import { FormError } from '@/components/ui/form-error';
 
 export function UploadForm({ today }: { today: string }) {
   const [state, action, pending] = useActionState(uploadSalesAction, {});
@@ -20,7 +21,7 @@ export function UploadForm({ today }: { today: string }) {
       </label>
       <input name="file" type="file" accept=".csv,.xlsx,.xls" required
         className="block w-full text-muted file:mr-3 file:rounded-[10px] file:border-0 file:bg-surface file:px-3 file:py-2 file:text-cream" />
-      {state.error && <p className="text-negative">{state.error}</p>}
+      <FormError message={state.error} />
       {state.summary && <p className="text-success">{state.summary}</p>}
       <Button type="submit" pending={pending} className="w-full">Importer les ventes</Button>
     </form>

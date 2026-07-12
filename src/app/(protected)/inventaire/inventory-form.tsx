@@ -4,6 +4,7 @@ import { validateInventoryAction } from './actions';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, DateField } from '@/components/ui/fields';
+import { FormError } from '@/components/ui/form-error';
 import { SearchBox } from '@/components/ui/search-box';
 import { matchesQuery } from '@/lib/text';
 
@@ -56,7 +57,7 @@ export function InventoryForm({ stock, today }: { stock: Line[]; today: string }
       {stock.length === 0 && (
         <p className="text-muted">Aucun mouvement de stock pour l&apos;instant.</p>
       )}
-      {state.error && <p className="text-negative">{state.error}</p>}
+      <FormError message={state.error} />
       <Button type="submit" pending={pending} className="w-full">
         Valider l&apos;inventaire
       </Button>

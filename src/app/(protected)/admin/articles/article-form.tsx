@@ -3,6 +3,7 @@ import { useActionState, useState } from 'react';
 import { saveSaleArticleAction, type ArticleFormState } from './actions';
 import { Input, Select } from '@/components/ui/fields';
 import { Button } from '@/components/ui/button';
+import { FormError } from '@/components/ui/form-error';
 
 type Prod = { id: number; name: string; baseUnit: string };
 
@@ -33,7 +34,7 @@ export function ArticleForm({ products, locations }: {
       ))}
       <Button type="button" variant="ghost" onClick={() => setLineCount(lineCount + 1)}
         className="min-h-9 px-3 text-xs">+ Ajouter un ingrédient</Button>
-      {state.error && <p className="text-negative">{state.error}</p>}
+      <FormError message={state.error} />
       <Button type="submit" pending={pending} className="w-full">
         Enregistrer l&apos;article
       </Button>

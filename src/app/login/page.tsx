@@ -1,6 +1,7 @@
 'use client';
 import { useActionState } from 'react';
 import { login } from './actions';
+import { FormError } from '@/components/ui/form-error';
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, {});
@@ -18,7 +19,7 @@ export default function LoginPage() {
           className="w-full bg-night border border-line rounded-[10px] p-3.5 text-lg text-cream placeholder:text-muted focus:outline-2 focus:outline-action" />
         <input name="password" type="password" placeholder="Mot de passe" autoComplete="current-password" required
           className="w-full bg-night border border-line rounded-[10px] p-3.5 text-lg text-cream placeholder:text-muted focus:outline-2 focus:outline-action" />
-        {state.error && <p className="text-negative text-sm">{state.error}</p>}
+        <FormError message={state.error} />
         <button disabled={pending}
           className="w-full min-h-12 bg-action hover:bg-action-hover text-white rounded-[10px] p-3 text-lg font-semibold disabled:opacity-50 transition-colors">
           {pending ? 'Connexion…' : 'Se connecter'}

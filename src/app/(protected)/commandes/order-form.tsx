@@ -4,6 +4,7 @@ import { createOrderAction } from './actions';
 import { SearchBox } from '@/components/ui/search-box';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/fields';
+import { FormError } from '@/components/ui/form-error';
 import { matchesQuery } from '@/lib/text';
 import type { ProductGroup } from '@/lib/product-grouping';
 
@@ -65,7 +66,7 @@ export function OrderForm({ groups }: { groups: Array<ProductGroup<Prod>> }) {
       ))}
       <Button variant="ghost" type="button" onClick={() => setLineCount(lineCount + 2)}
         className="min-h-9 px-3 text-xs">+ Ajouter des lignes</Button>
-      {state.error && <p className="text-negative">{state.error}</p>}
+      <FormError message={state.error} />
       {state.success && <p className="text-success font-semibold">Commande envoyée ✓</p>}
       <Button type="submit" pending={pending} className="w-full">
         Envoyer la commande

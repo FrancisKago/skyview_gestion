@@ -3,6 +3,7 @@ import { useActionState, useEffect, useRef } from 'react';
 import { recordAdjustmentAction } from './actions';
 import { Input, Select } from '@/components/ui/fields';
 import { Button } from '@/components/ui/button';
+import { FormError } from '@/components/ui/form-error';
 
 export function AdjustmentForm({ products, locations }: {
   products: Array<{ id: number; name: string; baseUnit: string }>;
@@ -29,7 +30,7 @@ export function AdjustmentForm({ products, locations }: {
       </Select>
       <Input name="qty" type="number" step="0.001" placeholder="Quantité (+/−)" required />
       <Input name="reason" placeholder="Motif obligatoire" required />
-      {state.error && <p className="text-negative col-span-2">{state.error}</p>}
+      <div className="col-span-2"><FormError message={state.error} /></div>
       {state.success && (
         <p className="text-success font-semibold col-span-2">Ajustement enregistré</p>
       )}

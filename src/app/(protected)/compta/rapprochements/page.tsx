@@ -5,6 +5,9 @@ import { requireRole } from '@/lib/session';
 import { getReconciliationReport } from '@/lib/sales-imports';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
+import { StatCard } from '@/components/ui/stat-card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Scale } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +19,13 @@ export default async function RapprochementsPage({ searchParams }: {
   const imports = await db.select().from(salesImports).orderBy(desc(salesImports.createdAt)).limit(10);
   const selected = importId ? Number(importId) : imports[0]?.id;
   if (!selected || !Number.isFinite(selected)) {
-    return <p className="text-muted">Importez d&apos;abord un fichier de ventes.</p>;
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Rapprochement ventes ↔ sorties" />
+        <EmptyState icon={Scale} message="Importez d'abord un fichier de ventes."
+          actionHref="/compta/imports" actionLabel="Aller aux imports" />
+      </div>
+    );
   }
   // Seuls le bar et la cuisine vendent (le magasin n'a pas d'articles de vente rattachés).
   const locs = await db.select().from(locations).where(ne(locations.type, 'magasin'));
@@ -70,14 +79,11 @@ export default async function RapprochementsPage({ searchParams }: {
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr className="font-bold border-t border-line">
-                <td className="p-2 text-cream" colSpan={4}>Écart total valorisé</td>
-                <td className={`text-right p-2 tnum ${report.totalGapValue < 0 ? 'text-negative' : 'text-money'}`}>
-                  {report.totalGapValue.toLocaleString('fr-FR')} FCFA
-                </td>
-              </tr></tfoot>
             </table>
           </Card>
+          <StatCard label={`Écart total valorisé — ${loc.name}`}
+            value={`${report.totalGapValue.toLocaleString('fr-FR')} FCFA`}
+            tone={report.totalGapValue < 0 ? 'negative' : 'money'} />
         </section>
       ))}
     </div>

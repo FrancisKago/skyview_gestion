@@ -4,6 +4,7 @@ import { receiveOrderAction } from '../actions';
 import { ListRow } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/fields';
+import { FormError } from '@/components/ui/form-error';
 
 type Line = { productId: number; name: string; baseUnit: string; qtyDelivered: number };
 
@@ -22,7 +23,7 @@ export function ReceptionForm({ orderId, lines }: { orderId: number; lines: Line
             className="w-24 text-right tnum" inputMode="decimal" />
         </ListRow>
       ))}
-      {state.error && <p className="text-negative">{state.error}</p>}
+      <FormError message={state.error} />
       <Button type="submit" pending={pending} className="w-full">
         Confirmer la réception
       </Button>

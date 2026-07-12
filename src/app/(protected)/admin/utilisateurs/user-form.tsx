@@ -3,6 +3,7 @@ import { useActionState } from 'react';
 import { createUserAction, type UserFormState } from './actions';
 import { Input, Select } from '@/components/ui/fields';
 import { Button } from '@/components/ui/button';
+import { FormError } from '@/components/ui/form-error';
 
 export function UserForm() {
   const [state, action, pending] = useActionState<UserFormState, FormData>(createUserAction, {});
@@ -18,7 +19,7 @@ export function UserForm() {
         <option value="comptable">Comptable</option>
         <option value="admin">Admin</option>
       </Select>
-      {state.error && <p className="text-negative col-span-2">{state.error}</p>}
+      <div className="col-span-2"><FormError message={state.error} /></div>
       <Button type="submit" pending={pending} className="col-span-2">
         Créer le compte
       </Button>

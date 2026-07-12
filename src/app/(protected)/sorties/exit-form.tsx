@@ -6,14 +6,18 @@ import { ListRow } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select, DateField } from '@/components/ui/fields';
 import { matchesQuery } from '@/lib/text';
+import type { ProductGroup } from '@/lib/product-grouping';
 
 type Prod = { id: number; name: string; baseUnit: string };
-type Group = { label: string; products: Prod[] };
 
-export function ExitForm({ groups, today }: { groups: Group[]; today: string }) {
+export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>; today: string }) {
   const [state, action, pending] = useActionState(recordExitAction, {});
   const [lineCount, setLineCount] = useState(5);
   const [query, setQuery] = useState('');
+  // Sélection par ligne (index → id produit en chaîne). Selects contrôlés : sans ça,
+  // filtrer les options via la recherche ferait perdre silencieusement un choix déjà
+  // fait (le <select> non contrôlé retombe sur le placeholder si son option disparaît).
+  const [selected, setSelected] = useState<Record<number, string>>({});
   const formRef = useRef<HTMLFormElement>(null);
   // Jeton d'idempotence : un par soumission, transmis au serveur (cf. recordServiceExit).
   // Un double-clic renvoie le MÊME jeton tant que le formulaire n'a pas été réinitialisé
@@ -32,10 +36,17 @@ export function ExitForm({ groups, today }: { groups: Group[]; today: string }) 
       // formRef.current?.reset() ci-dessus, ça ne peut se faire qu'après commit.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setToken(crypto.randomUUID());
+      // Les selects étant contrôlés, formRef.reset() ne suffit plus pour les vider.
+      setSelected({});
     }
   }, [state]);
-  const filteredGroups = groups
-    .map((g) => ({ ...g, products: g.products.filter((p) => matchesQuery(p.name, query)) }))
+  // Options de la ligne i : le produit déjà sélectionné reste épinglé même si la
+  // recherche l'exclut — sinon son <option> disparaîtrait et le choix serait perdu.
+  const optionsFor = (i: number) => groups
+    .map((g) => ({
+      ...g,
+      products: g.products.filter((p) => matchesQuery(p.name, query) || String(p.id) === (selected[i] ?? '')),
+    }))
     .filter((g) => g.products.length > 0);
   return (
     <form ref={formRef} action={action} className="bg-card border border-line rounded-xl p-4 space-y-3 text-sm">
@@ -50,9 +61,10 @@ export function ExitForm({ groups, today }: { groups: Group[]; today: string }) 
       <SearchBox value={query} onChange={setQuery} />
       {Array.from({ length: lineCount }).map((_, i) => (
         <div key={i} className="flex gap-2">
-          <Select name="lineProduct" className="flex-1">
+          <Select name="lineProduct" className="flex-1" value={selected[i] ?? ''}
+            onChange={(e) => setSelected((s) => ({ ...s, [i]: e.target.value }))}>
             <option value="">— produit —</option>
-            {filteredGroups.map((g) => (
+            {optionsFor(i).map((g) => (
               <optgroup key={g.label} label={g.label}>
                 {g.products.map((p) => (
                   <option key={p.id} value={p.id}>{p.name} ({p.baseUnit})</option>

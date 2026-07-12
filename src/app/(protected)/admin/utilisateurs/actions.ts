@@ -1,9 +1,10 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
 import { formNumber, formValues } from '@/lib/forms';
-import { createUser, setUserActive } from '@/lib/users';
+import { createUser, setUserActive, updateUser } from '@/lib/users';
 import type { Role } from '@/lib/auth';
 
 export type UserFormState = {
@@ -58,4 +59,33 @@ export async function toggleUserAction(formData: FormData) {
   // le garde-fou "dernier admin actif" protège la DB ; on ne revalide que sur succès.
   if (!res.ok) return;
   revalidatePath('/admin/utilisateurs');
+}
+
+export async function updateUserAction(prev: UserFormState, formData: FormData):
+  Promise<UserFormState> {
+  await requireRole(['admin']);
+  // En édition seuls nom et rôle sont ressaisissables (username figé, mot de
+  // passe jamais renvoyé) : mêmes règles de préservation qu'en création.
+  const fail = (error?: string): UserFormState =>
+    ({ error, values: formValues(formData, ['name', 'role']), attempt: (prev.attempt ?? 0) + 1 });
+  const id = formNumber(formData, 'id'); // finite ou null (garde-fou : id forgé)
+  if (id == null) return fail('Utilisateur invalide');
+  let res: Awaited<ReturnType<typeof updateUser>>;
+  try {
+    res = await updateUser(db, {
+      id,
+      name: String(formData.get('name') ?? ''),
+      role: String(formData.get('role') ?? '') as Role,
+      password: String(formData.get('password') ?? '') || undefined,
+    });
+  } catch {
+    // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser
+    // fuiter une erreur DB brute vers le client.
+    return fail('Service indisponible, veuillez réessayer.');
+  }
+  if (!res.ok) return fail(res.error);
+  revalidatePath('/admin/utilisateurs');
+  // Après une mise à jour, retirer ?edit de l'URL. redirect() lance
+  // NEXT_REDIRECT : il doit rester HORS du try/catch ci-dessus.
+  redirect('/admin/utilisateurs');
 }

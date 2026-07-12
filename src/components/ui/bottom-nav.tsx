@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3, ShoppingCart, PackageOpen, CalendarClock, ClipboardList,
-  Truck, LayoutDashboard, Upload, Scale, Package, ReceiptText, Users, Wrench,
+  Truck, LayoutDashboard, Upload, Scale, Package, ReceiptText, Users, Wrench, FileUp,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -12,6 +12,7 @@ const ICONS: Record<string, LucideIcon> = {
   sorties: CalendarClock, inventaire: ClipboardList, livraisons: Truck,
   compta: LayoutDashboard, imports: Upload, rapprochements: Scale,
   produits: Package, articles: ReceiptText, utilisateurs: Users, ajustements: Wrench,
+  fichiers: FileUp,
 };
 
 export interface NavItem { href: string; label: string; icon: keyof typeof ICONS }

@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
 import { formNumber } from '@/lib/forms';
@@ -56,10 +57,11 @@ export async function saveSaleArticleAction(prev: ArticleFormState, formData: Fo
   const lines = rows.filter(
     (r): r is { productId: number; qty: number } => r.productId != null && r.qty != null,
   );
+  const id = num('id') ?? undefined;
   let res: Awaited<ReturnType<typeof saveSaleArticle>>;
   try {
     res = await saveSaleArticle(db, {
-      id: num('id') ?? undefined,
+      id,
       cashName: String(formData.get('cashName') ?? ''),
       locationId: num('locationId') ?? 0,
       lines,
@@ -71,7 +73,10 @@ export async function saveSaleArticleAction(prev: ArticleFormState, formData: Fo
   }
   if (!res.ok) return fail(res.error);
   revalidatePath('/admin/articles');
-  // Succès : état vide → key repart à 0, les champs remontent vides (le reset
-  // automatique après soumission est le comportement souhaité en création).
+  // Après une mise à jour, retirer ?edit de l'URL. redirect() lance
+  // NEXT_REDIRECT : il doit rester HORS du try/catch ci-dessus.
+  if (id != null) redirect('/admin/articles');
+  // Succès en création : état vide → key repart à 0, les champs remontent
+  // vides (le reset automatique après soumission est le comportement souhaité).
   return {};
 }

@@ -4,13 +4,36 @@ import { db } from '@/db';
 import { requireRole } from '@/lib/session';
 import { recordServiceExit } from '@/lib/service-exits';
 
-export type ExitFormState = { error?: string; success?: boolean; warnings?: string[] };
+export type ExitFormState = {
+  error?: string;
+  success?: boolean;
+  warnings?: string[];
+  // En cas d'erreur : valeurs soumises à réinjecter en defaultValue, et compteur
+  // de tentatives servant de `key` côté client pour forcer le remontage des
+  // champs (React 19 réinitialise les champs non contrôlés à chaque soumission).
+  // Les lignes sont renvoyées telles quelles (brutes), y compris les lignes
+  // vides, pour conserver la position de chaque champ.
+  values?: { serviceDate: string; lines: Array<{ productId: string; qty: string }> };
+  attempt?: number;
+};
 
-export async function recordExitAction(_prev: ExitFormState, formData: FormData):
+export async function recordExitAction(prev: ExitFormState, formData: FormData):
   Promise<ExitFormState> {
   const session = await requireRole(['barman', 'cuisinier']);
-  if (!session.locationId) return { error: 'Aucun emplacement associé à votre compte' };
   const serviceDate = String(formData.get('serviceDate') ?? '').trim();
+  const rawQtys = formData.getAll('lineQty');
+  const fail = (error?: string): ExitFormState => ({
+    error,
+    values: {
+      serviceDate,
+      lines: formData.getAll('lineProduct').map((p, i) => ({
+        productId: String(p),
+        qty: String(rawQtys[i] ?? ''),
+      })),
+    },
+    attempt: (prev.attempt ?? 0) + 1,
+  });
+  if (!session.locationId) return fail('Aucun emplacement associé à votre compte');
   // Champ de ligne → nombre fini ou null (vide/forgé → null), même contrat que
   // src/app/(protected)/commandes/actions.ts.
   const parse = (v: FormDataEntryValue): number | null => {
@@ -26,7 +49,7 @@ export async function recordExitAction(_prev: ExitFormState, formData: FormData)
   // explicite plutôt qu'un abandon silencieux de la ligne. Les lignes
   // entièrement vides restent ignorées (emplacements de formulaire inutilisés).
   if (rows.some((r) => (r.productId == null) !== (r.qty == null))) {
-    return { error: 'Ligne incomplète : chaque ligne doit avoir un produit ET une quantité' };
+    return fail('Ligne incomplète : chaque ligne doit avoir un produit ET une quantité');
   }
   const lines = rows.filter(
     (r): r is { productId: number; qty: number } => r.productId != null && r.qty != null,
@@ -46,12 +69,14 @@ export async function recordExitAction(_prev: ExitFormState, formData: FormData)
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser
     // fuiter une erreur DB brute vers le client.
-    return { error: 'Service indisponible, veuillez réessayer.' };
+    return fail('Service indisponible, veuillez réessayer.');
   }
-  if (!res.ok) return { error: res.error };
+  if (!res.ok) return fail(res.error);
   revalidatePath('/sorties');
   // Le stock de l'emplacement vient de bouger : la page /stock (Tâche 17) doit refléter
   // les nouvelles quantités dès sa prochaine visite.
   revalidatePath('/stock');
+  // Succès : values/attempt absents → key repart à 0 ; le reset manuel via
+  // formRef côté client (souhaité après succès) est conservé.
   return { success: true, warnings: res.warnings };
 }

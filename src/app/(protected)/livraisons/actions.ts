@@ -9,13 +9,32 @@ import { deliverOrder } from '@/lib/orders';
 import { formNumber } from '@/lib/forms';
 import { totalBase } from '@/lib/units';
 
-export type DeliveryFormState = { error?: string };
+export type DeliveryFormState = {
+  error?: string;
+  // En cas d'erreur : valeurs soumises à réinjecter en defaultValue, et compteur
+  // de tentatives servant de `key` côté client pour forcer le remontage des
+  // champs (React 19 réinitialise les champs non contrôlés à chaque soumission).
+  // Les saisies (casiers + unités) sont indexées par id produit (les lignes du
+  // formulaire sont fixes, une par produit de la commande).
+  values?: { lines: Record<string, { packs: string; units: string }> };
+  attempt?: number;
+};
 
-export async function deliverOrderAction(_prev: DeliveryFormState, formData: FormData):
+export async function deliverOrderAction(prev: DeliveryFormState, formData: FormData):
   Promise<DeliveryFormState> {
   const session = await requireRole(['magasinier']);
+  const fail = (error?: string): DeliveryFormState => {
+    const idsRaw = formData.getAll('lineProduct');
+    const packsRaw = formData.getAll('linePacks');
+    const unitsRaw = formData.getAll('lineUnits');
+    const lines: Record<string, { packs: string; units: string }> = {};
+    idsRaw.forEach((id, i) => {
+      lines[String(id)] = { packs: String(packsRaw[i] ?? ''), units: String(unitsRaw[i] ?? '') };
+    });
+    return { error, values: { lines }, attempt: (prev.attempt ?? 0) + 1 };
+  };
   const orderId = formNumber(formData, 'orderId');
-  if (orderId == null) return { error: 'Commande invalide' };
+  if (orderId == null) return fail('Commande invalide');
 
   // Champ de ligne → nombre fini ou null (vide/forgé → null), même contrat que formNumber
   // (cf. src/app/(protected)/commandes/actions.ts). Contrairement à la saisie de commande,
@@ -32,10 +51,10 @@ export async function deliverOrderAction(_prev: DeliveryFormState, formData: For
   const units = formData.getAll('lineUnits').map(parse);
 
   if (productIds.some((v) => v == null)) {
-    return { error: 'Ligne de livraison invalide' };
+    return fail('Ligne de livraison invalide');
   }
   if (packs.some((v) => v == null) || units.some((v) => v == null)) {
-    return { error: 'Quantité livrée invalide sur une ligne' };
+    return fail('Quantité livrée invalide sur une ligne');
   }
   const ids = productIds as number[];
 
@@ -62,9 +81,9 @@ export async function deliverOrderAction(_prev: DeliveryFormState, formData: For
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser
     // fuiter une erreur DB brute vers le client.
-    return { error: 'Service indisponible, veuillez réessayer.' };
+    return fail('Service indisponible, veuillez réessayer.');
   }
-  if (!res.ok) return { error: res.error };
+  if (!res.ok) return fail(res.error);
   revalidatePath('/livraisons');
   // redirect() fonctionne en levant une exception : il doit rester HORS du try/catch.
   redirect('/livraisons');

@@ -13,8 +13,13 @@ type Line = {
 
 export function DeliveryForm({ orderId, lines }: { orderId: number; lines: Line[] }) {
   const [state, action, pending] = useActionState(deliverOrderAction, {});
+  // React 19 réinitialise les champs non contrôlés après chaque soumission,
+  // même en erreur : on réinjecte les saisies (indexées par id produit) en
+  // defaultValue et la `key` (compteur de tentatives) force le remontage pour
+  // les appliquer. En cas de succès, l'action redirige.
+  const v = state.values;
   return (
-    <form action={action} className="space-y-3">
+    <form key={state.attempt ?? 0} action={action} className="space-y-3">
       <input type="hidden" name="orderId" value={orderId} />
       {lines.map((l) => (
         <Card key={l.productId} className="p-3 space-y-2 text-sm">
@@ -25,16 +30,17 @@ export function DeliveryForm({ orderId, lines }: { orderId: number; lines: Line[
           <div className="flex gap-2 items-center">
             {l.packSize ? (
               <>
-                <Input name="linePacks" type="number" step="0.5" min="0" defaultValue={0}
+                <Input name="linePacks" type="number" step="0.5" min="0"
+                  defaultValue={v?.lines[String(l.productId)]?.packs ?? 0}
                   className="w-20 tnum" inputMode="decimal" />
                 <span className="text-muted">{l.packName}(s) de {l.packSize} +</span>
               </>
             ) : (
               <input type="hidden" name="linePacks" value="0" />
             )}
-            <Input name="lineUnits" type="number" step="0.001" min="0" defaultValue={0}
+            <Input name="lineUnits" type="number" step="0.001" min="0"
+              defaultValue={v?.lines[String(l.productId)]?.units ?? 0}
               className="w-24 tnum" inputMode="decimal" />
-            <span className="text-muted">{l.baseUnit}(s)</span>
           </div>
         </Card>
       ))}

@@ -7,18 +7,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { revalidatePath } from 'next/cache';
 import { saveProduct } from '@/lib/products';
-import { createUser } from '@/lib/users';
+import { createUser, updateUser } from '@/lib/users';
 import { saveSaleArticle } from '@/lib/sale-articles';
 import { saveProductAction } from '@/app/(protected)/admin/produits/actions';
-import { createUserAction } from '@/app/(protected)/admin/utilisateurs/actions';
+import { createUserAction, updateUserAction } from '@/app/(protected)/admin/utilisateurs/actions';
 import { saveSaleArticleAction } from '@/app/(protected)/admin/articles/actions';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+// redirect() lève une exception dans Next : le mock reproduit ce contrat.
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(() => { throw new Error('NEXT_REDIRECT'); }),
+}));
 vi.mock('@/lib/session', () => ({
   requireRole: vi.fn(async () => ({ userId: 1, role: 'admin' })),
 }));
 vi.mock('@/lib/products', () => ({ saveProduct: vi.fn() }));
-vi.mock('@/lib/users', () => ({ createUser: vi.fn(), setUserActive: vi.fn() }));
+vi.mock('@/lib/users', () => ({ createUser: vi.fn(), setUserActive: vi.fn(), updateUser: vi.fn() }));
 vi.mock('@/lib/sale-articles', () => ({ saveSaleArticle: vi.fn() }));
 
 beforeEach(() => {
@@ -35,6 +39,7 @@ describe('saveProductAction', () => {
     fd.set('packSize', '12');
     fd.set('purchasePrice', '650');
     fd.set('alertThreshold', '24');
+    fd.set('active', 'on');
     return fd;
   };
 
@@ -45,6 +50,7 @@ describe('saveProductAction', () => {
     expect(state.values).toEqual({
       name: 'Castel 65cl', category: 'Bière', baseUnit: 'bouteille',
       packName: 'casier', packSize: '12', purchasePrice: '650', alertThreshold: '24',
+      active: 'on',
     });
     expect(state.attempt).toBe(1);
     expect(revalidatePath).not.toHaveBeenCalled();
@@ -94,6 +100,40 @@ describe('createUserAction', () => {
   it('succès : état vide', async () => {
     vi.mocked(createUser).mockResolvedValue({ ok: true });
     expect(await createUserAction({}, userData())).toEqual({});
+  });
+});
+
+describe('updateUserAction', () => {
+  const editData = () => {
+    const fd = new FormData();
+    fd.set('id', '4');
+    fd.set('name', 'Jean Mballa');
+    fd.set('role', 'barman');
+    fd.set('password', 'nouveaumdp');
+    return fd;
+  };
+
+  it('erreur métier : renvoie nom et rôle (jamais le mot de passe) + attempt', async () => {
+    vi.mocked(updateUser).mockResolvedValue({ ok: false, error: 'Impossible de rétrograder le dernier admin' });
+    const state = await updateUserAction({}, editData());
+    expect(state.error).toBe('Impossible de rétrograder le dernier admin');
+    expect(state.values).toEqual({ name: 'Jean Mballa', role: 'barman' });
+    expect(state.attempt).toBe(1);
+  });
+
+  it('id forgé : erreur + saisie préservée', async () => {
+    const fd = editData();
+    fd.set('id', 'abc');
+    const state = await updateUserAction({}, fd);
+    expect(state.error).toBe('Utilisateur invalide');
+    expect(state.values).toEqual({ name: 'Jean Mballa', role: 'barman' });
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it("succès : redirection vers la liste (retire ?edit de l'URL)", async () => {
+    vi.mocked(updateUser).mockResolvedValue({ ok: true });
+    await expect(updateUserAction({}, editData())).rejects.toThrow('NEXT_REDIRECT');
+    expect(revalidatePath).toHaveBeenCalledWith('/admin/utilisateurs');
   });
 });
 

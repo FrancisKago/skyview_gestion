@@ -2,6 +2,10 @@ import { db } from '@/db';
 import { users } from '@/db/schema';
 import { asc } from 'drizzle-orm';
 import { requireRole } from '@/lib/session';
+import { PageHeader } from '@/components/ui/page-header';
+import { ListRow } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { UserForm } from './user-form';
 import { toggleUserAction } from './actions';
 
@@ -12,23 +16,27 @@ export default async function UtilisateursPage() {
   const rows = await db.select().from(users).orderBy(asc(users.role), asc(users.name));
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold">Utilisateurs</h1>
+      <PageHeader title="Utilisateurs" />
       <UserForm />
-      <ul className="divide-y bg-white rounded-xl shadow">
+      <div className="space-y-2">
         {rows.map((u) => (
-          <li key={u.id} className="p-3 text-sm flex justify-between items-center">
-            <span><b>{u.name}</b> ({u.username}) — {u.role}
-              {!u.active && <em className="text-gray-400"> — désactivé</em>}</span>
+          <ListRow key={u.id}>
+            <span>
+              <span className="font-semibold text-cream">{u.name}</span>
+              {!u.active && <span className="ml-2 align-middle"><Badge tone="neutral">désactivé</Badge></span>}
+              <br />
+              <span className="text-sm text-muted">{u.username} — {u.role}</span>
+            </span>
             <form action={toggleUserAction}>
               <input type="hidden" name="userId" value={u.id} />
               <input type="hidden" name="active" value={String(!u.active)} />
-              <button className="text-xs underline text-indigo-600">
+              <Button type="submit" variant="ghost" className="min-h-9 px-3 text-xs">
                 {u.active ? 'Désactiver' : 'Réactiver'}
-              </button>
+              </Button>
             </form>
-          </li>
+          </ListRow>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

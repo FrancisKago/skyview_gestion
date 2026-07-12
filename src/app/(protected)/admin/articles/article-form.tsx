@@ -1,6 +1,8 @@
 'use client';
 import { useActionState, useState } from 'react';
 import { saveSaleArticleAction, type ArticleFormState } from './actions';
+import { Input, Select } from '@/components/ui/fields';
+import { Button } from '@/components/ui/button';
 
 type Prod = { id: number; name: string; baseUnit: string };
 
@@ -10,31 +12,31 @@ export function ArticleForm({ products, locations }: {
   const [state, action, pending] = useActionState<ArticleFormState, FormData>(saveSaleArticleAction, {});
   const [lineCount, setLineCount] = useState(1);
   return (
-    <form action={action} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
-      <input name="cashName" placeholder="Nom exact dans l'export caisse *"
-        className="border rounded p-2 w-full" required />
-      <select name="locationId" className="border rounded p-2 w-full" required>
+    <form action={action} className="bg-card border border-line rounded-xl p-4 space-y-2 text-sm">
+      <Input name="cashName" placeholder="Nom exact dans l'export caisse *"
+        className="w-full" required />
+      <Select name="locationId" className="w-full" required>
         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-      </select>
-      <p className="font-semibold">Fiche technique (consommation par vente) :</p>
+      </Select>
+      <p className="font-semibold text-cream">Fiche technique (consommation par vente) :</p>
       {Array.from({ length: lineCount }).map((_, i) => (
         <div key={i} className="flex gap-2">
-          <select name="lineProduct" className="border rounded p-2 flex-1">
+          <Select name="lineProduct" className="flex-1">
             <option value="">— produit —</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>{p.name} ({p.baseUnit})</option>
             ))}
-          </select>
-          <input name="lineQty" type="number" step="0.001" placeholder="Qté"
-            className="border rounded p-2 w-24" />
+          </Select>
+          <Input name="lineQty" type="number" step="0.001" placeholder="Qté"
+            className="w-24" />
         </div>
       ))}
-      <button type="button" onClick={() => setLineCount(lineCount + 1)}
-        className="text-indigo-600 text-xs underline">+ Ajouter un ingrédient</button>
-      {state.error && <p className="text-red-600">{state.error}</p>}
-      <button disabled={pending} className="bg-indigo-600 text-white rounded p-2 w-full font-semibold">
+      <Button type="button" variant="ghost" onClick={() => setLineCount(lineCount + 1)}
+        className="min-h-9 px-3 text-xs">+ Ajouter un ingrédient</Button>
+      {state.error && <p className="text-negative">{state.error}</p>}
+      <Button type="submit" pending={pending} className="w-full">
         Enregistrer l&apos;article
-      </button>
+      </Button>
     </form>
   );
 }

@@ -1,6 +1,8 @@
 'use client';
 import { useActionState, useEffect, useRef } from 'react';
 import { recordAdjustmentAction } from './actions';
+import { Input, Select } from '@/components/ui/fields';
+import { Button } from '@/components/ui/button';
 
 export function AdjustmentForm({ products, locations }: {
   products: Array<{ id: number; name: string; baseUnit: string }>;
@@ -16,25 +18,24 @@ export function AdjustmentForm({ products, locations }: {
     if (state.success) formRef.current?.reset();
   }, [state]);
   return (
-    <form ref={formRef} action={action} className="bg-white rounded-xl shadow p-4 grid grid-cols-2 gap-2 text-sm">
-      <select name="productId" className="border rounded p-2" required defaultValue="">
+    <form ref={formRef} action={action} className="bg-card border border-line rounded-xl p-4 grid grid-cols-2 gap-2 text-sm">
+      <Select name="productId" required defaultValue="">
         <option value="">— produit —</option>
         {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.baseUnit})</option>)}
-      </select>
-      <select name="locationId" className="border rounded p-2" required defaultValue="">
+      </Select>
+      <Select name="locationId" required defaultValue="">
         <option value="">— emplacement —</option>
         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-      </select>
-      <input name="qty" type="number" step="0.001" placeholder="Quantité (+/−)"
-        className="border rounded p-2" required />
-      <input name="reason" placeholder="Motif obligatoire" className="border rounded p-2" required />
-      {state.error && <p className="text-red-600 col-span-2">{state.error}</p>}
+      </Select>
+      <Input name="qty" type="number" step="0.001" placeholder="Quantité (+/−)" required />
+      <Input name="reason" placeholder="Motif obligatoire" required />
+      {state.error && <p className="text-negative col-span-2">{state.error}</p>}
       {state.success && (
-        <p className="text-green-700 font-semibold col-span-2">✅ Ajustement enregistré</p>
+        <p className="text-success font-semibold col-span-2">Ajustement enregistré</p>
       )}
-      <button disabled={pending} className="bg-indigo-600 text-white rounded p-2 col-span-2 font-semibold">
+      <Button type="submit" pending={pending} className="col-span-2">
         Enregistrer l&apos;ajustement
-      </button>
+      </Button>
     </form>
   );
 }

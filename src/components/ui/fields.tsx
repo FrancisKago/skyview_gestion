@@ -4,8 +4,10 @@ export function Input({ className = '', ...rest }: React.InputHTMLAttributes<HTM
   return <input className={`${FIELD} ${className}`} {...rest} />;
 }
 
-export function Select({ className = '', children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={`${FIELD} ${className}`} {...rest}>{children}</select>;
+export function Select({ className = '', children, ref, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement> & {
+  ref?: React.Ref<HTMLSelectElement>;
+}) {
+  return <select ref={ref} className={`${FIELD} ${className}`} {...rest}>{children}</select>;
 }
 
 export function DateField({ className = '', ...rest }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>) {

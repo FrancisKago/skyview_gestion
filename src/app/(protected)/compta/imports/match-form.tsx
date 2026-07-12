@@ -1,6 +1,8 @@
 'use client';
 import { useRef } from 'react';
 import { matchLineAction } from './actions';
+import { Select } from '@/components/ui/fields';
+import { Button } from '@/components/ui/button';
 
 type ArticleOption = { id: number; cashName: string };
 
@@ -23,11 +25,11 @@ export function MatchForm({ lineId, raw, qty, articles }: {
       className="flex gap-2 items-center"
     >
       <input type="hidden" name="lineId" value={lineId} />
-      <span className="flex-1">« {raw} » (qté {qty})</span>
-      <select ref={selectRef} name="cashName" className="border rounded p-1">
+      <span className="flex-1 text-cream">« {raw} » (qté {qty})</span>
+      <Select ref={selectRef} name="cashName" className="min-h-9 p-1.5 text-sm">
         {articles.map((a) => <option key={a.id} value={a.cashName}>{a.cashName}</option>)}
-      </select>
-      <button className="bg-indigo-600 text-white rounded px-2 py-1 text-xs">Associer</button>
+      </Select>
+      <Button type="submit" variant="ghost" className="min-h-9 px-3 text-xs">Associer</Button>
     </form>
   );
 }

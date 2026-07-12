@@ -3,6 +3,8 @@ import { locations, salesImports } from '@/db/schema';
 import { desc, ne } from 'drizzle-orm';
 import { requireRole } from '@/lib/session';
 import { getReconciliationReport } from '@/lib/sales-imports';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +16,7 @@ export default async function RapprochementsPage({ searchParams }: {
   const imports = await db.select().from(salesImports).orderBy(desc(salesImports.createdAt)).limit(10);
   const selected = importId ? Number(importId) : imports[0]?.id;
   if (!selected || !Number.isFinite(selected)) {
-    return <p className="text-gray-500">Importez d&apos;abord un fichier de ventes.</p>;
+    return <p className="text-muted">Importez d&apos;abord un fichier de ventes.</p>;
   }
   // Seuls le bar et la cuisine vendent (le magasin n'a pas d'articles de vente rattachés).
   const locs = await db.select().from(locations).where(ne(locations.type, 'magasin'));
@@ -27,14 +29,14 @@ export default async function RapprochementsPage({ searchParams }: {
   const unmatchedCount = reports[0]?.report.unmatchedCount ?? 0;
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-bold">Rapprochement ventes ↔ sorties</h1>
+      <PageHeader title="Rapprochement ventes ↔ sorties" />
       {imports.length > 1 && (
-        <ul className="flex gap-2 flex-wrap text-xs">
+        <ul className="flex gap-2 flex-wrap text-sm">
           {imports.map((i) => (
             <li key={i.id}>
               <a href={`/compta/rapprochements?importId=${i.id}`}
-                className={`inline-block rounded-full px-3 py-1 border ${
-                  i.id === selected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700'
+                className={`inline-block rounded-full px-3 py-1 ${
+                  i.id === selected ? 'bg-action text-white' : 'border border-line text-muted hover:text-cream'
                 }`}>
                 {i.filename} ({i.serviceDate})
               </a>
@@ -43,35 +45,39 @@ export default async function RapprochementsPage({ searchParams }: {
         </ul>
       )}
       {unmatchedCount > 0 && (
-        <p className="bg-amber-50 text-amber-700 rounded-xl p-3 text-sm">
-          ⚠️ {unmatchedCount} article(s) non reconnu(s) — exclus du rapprochement,{' '}
-          <a href="/compta/imports" className="underline">à associer dans Ventes caisse</a>.
-        </p>
+        <Card tone="warning" className="p-3 text-warning text-sm">
+          {unmatchedCount} article(s) non reconnu(s) — exclus du rapprochement,{' '}
+          <a href="/compta/imports" className="underline underline-offset-4">à associer dans Ventes caisse</a>.
+        </Card>
       )}
       {reports.map(({ loc, report }) => (
         <section key={loc.id} className="space-y-2">
-          <h2 className="font-semibold">{loc.name}</h2>
-          <table className="w-full bg-white rounded-xl shadow text-sm">
-            <thead><tr className="text-left text-gray-500">
-              <th className="p-2">Produit</th><th>Théorique</th><th>Déclaré</th><th>Écart</th><th className="text-right p-2">FCFA</th>
-            </tr></thead>
-            <tbody>
-              {report.lines.map((l) => (
-                <tr key={l.productId} className={l.gap !== 0 ? 'bg-red-50' : ''}>
-                  <td className="p-2">{l.name}</td>
-                  <td>{l.theoretical} {l.baseUnit}</td>
-                  <td>{l.declared}</td>
-                  <td className={l.gap !== 0 ? 'text-red-600 font-semibold' : ''}>
-                    {l.gap > 0 ? '+' : ''}{l.gap}</td>
-                  <td className="text-right p-2">{l.gapValue.toLocaleString('fr-FR')}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot><tr className="font-bold border-t">
-              <td className="p-2" colSpan={4}>Écart total valorisé</td>
-              <td className="text-right p-2">{report.totalGapValue.toLocaleString('fr-FR')} FCFA</td>
-            </tr></tfoot>
-          </table>
+          <h2 className="font-display text-lg font-bold text-cream">{loc.name}</h2>
+          <Card className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-muted text-xs uppercase tracking-wider">
+                <th className="p-2">Produit</th><th>Théorique</th><th>Déclaré</th><th>Écart</th><th className="text-right p-2">FCFA</th>
+              </tr></thead>
+              <tbody>
+                {report.lines.map((l) => (
+                  <tr key={l.productId} className={`border-t border-line ${l.gap !== 0 ? 'bg-negative/10' : ''}`}>
+                    <td className="p-2 text-cream">{l.name}</td>
+                    <td className="tnum text-cream">{l.theoretical} {l.baseUnit}</td>
+                    <td className="tnum text-cream">{l.declared}</td>
+                    <td className={l.gap !== 0 ? 'text-negative tnum font-semibold' : 'tnum text-cream'}>
+                      {l.gap > 0 ? '+' : ''}{l.gap}</td>
+                    <td className="text-right p-2 tnum text-cream">{l.gapValue.toLocaleString('fr-FR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr className="font-bold border-t border-line">
+                <td className="p-2 text-cream" colSpan={4}>Écart total valorisé</td>
+                <td className={`text-right p-2 tnum ${report.totalGapValue < 0 ? 'text-negative' : 'text-money'}`}>
+                  {report.totalGapValue.toLocaleString('fr-FR')} FCFA
+                </td>
+              </tr></tfoot>
+            </table>
+          </Card>
         </section>
       ))}
     </div>

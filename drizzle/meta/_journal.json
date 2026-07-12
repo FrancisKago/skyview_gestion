@@ -29,6 +29,13 @@
       "when": 1783863127346,
       "tag": "0003_service_exits_client_token",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783872810208,
+      "tag": "0004_orders_location_created_idx",
+      "breakpoints": true
     }
   ]
 }

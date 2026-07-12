@@ -64,7 +64,10 @@ export const orders = pgTable('orders', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   deliveredAt: timestamp('delivered_at'),
   receivedAt: timestamp('received_at'),
-});
+}, (table) => [
+  // getFrequentProducts filtre par emplacement puis fenêtre glissante sur created_at.
+  index('orders_location_created_idx').on(table.locationId, table.createdAt),
+]);
 
 export const orderLines = pgTable('order_lines', {
   id: serial('id').primaryKey(),

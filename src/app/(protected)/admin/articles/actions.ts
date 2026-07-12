@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
 import { formNumber } from '@/lib/forms';
@@ -30,10 +31,11 @@ export async function saveSaleArticleAction(_prev: ArticleFormState, formData: F
   const lines = rows.filter(
     (r): r is { productId: number; qty: number } => r.productId != null && r.qty != null,
   );
+  const id = num('id') ?? undefined;
   let res: Awaited<ReturnType<typeof saveSaleArticle>>;
   try {
     res = await saveSaleArticle(db, {
-      id: num('id') ?? undefined,
+      id,
       cashName: String(formData.get('cashName') ?? ''),
       locationId: num('locationId') ?? 0,
       lines,
@@ -45,5 +47,8 @@ export async function saveSaleArticleAction(_prev: ArticleFormState, formData: F
   }
   if (!res.ok) return { error: res.error };
   revalidatePath('/admin/articles');
+  // Après une mise à jour, retirer ?edit de l'URL. redirect() lance
+  // NEXT_REDIRECT : il doit rester HORS du try/catch ci-dessus.
+  if (id != null) redirect('/admin/articles');
   return {};
 }

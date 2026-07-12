@@ -1,4 +1,5 @@
 import { ReceiptText } from 'lucide-react';
+import Link from 'next/link';
 import { db } from '@/db';
 import { saleArticles, recipeLines, products, locations } from '@/db/schema';
 import { asc, eq } from 'drizzle-orm';
@@ -10,8 +11,18 @@ import { ArticleForm } from './article-form';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ArticlesPage() {
+export default async function ArticlesPage({ searchParams }: {
+  searchParams: Promise<{ edit?: string }>;
+}) {
   await requireRole(['admin']);
+  const { edit } = await searchParams;
+  const editId = edit != null && Number.isFinite(Number(edit)) ? Number(edit) : null;
+  const editing = editId != null
+    ? (await db.select().from(saleArticles).where(eq(saleArticles.id, editId)))[0]
+    : undefined;
+  const editingLines = editing
+    ? await db.select().from(recipeLines).where(eq(recipeLines.saleArticleId, editing.id))
+    : [];
   const arts = await db.select({
     id: saleArticles.id, cashName: saleArticles.cashName, locName: locations.name,
   }).from(saleArticles)
@@ -27,8 +38,13 @@ export default async function ArticlesPage() {
     <div className="space-y-4">
       <PageHeader title="Articles de vente & fiches techniques" />
       <ArticleForm
+        key={editing?.id ?? 'new'}
         products={prods.map((p) => ({ id: p.id, name: p.name, baseUnit: p.baseUnit }))}
         locations={locs.filter((l) => l.type !== 'magasin').map((l) => ({ id: l.id, name: l.name }))}
+        initial={editing ? {
+          id: editing.id, cashName: editing.cashName, locationId: editing.locationId,
+          lines: editingLines.map((l) => ({ productId: l.productId, qty: Number(l.qty) })),
+        } : undefined}
       />
       {arts.length === 0 ? (
         <EmptyState icon={ReceiptText} message="Aucun article de vente — créez-en un ci-dessus." />
@@ -36,8 +52,13 @@ export default async function ArticlesPage() {
         <div className="space-y-2">
           {arts.map((a) => (
             <Card key={a.id} className="p-3 text-sm">
-              <span className="font-semibold text-cream">{a.cashName}</span>{' '}
-              <span className="text-muted">({a.locName})</span>
+              <div className="flex items-baseline justify-between gap-2">
+                <span>
+                  <span className="font-semibold text-cream">{a.cashName}</span>{' '}
+                  <span className="text-muted">({a.locName})</span>
+                </span>
+                <Link href={`/admin/articles?edit=${a.id}`} className="text-action text-xs underline underline-offset-4 shrink-0">Modifier</Link>
+              </div>
               <ul className="text-muted pl-4 mt-1">
                 {lines.filter((l) => l.saleArticleId === a.id).map((l, i) => (
                   <li key={i}>• <span className="tnum">{Number(l.qty)}</span> {l.baseUnit} — {l.productName}</li>

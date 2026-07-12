@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Skyview — Gestion de stock Restaurant-Bar
 
-## Getting Started
+Application de traçabilité des mouvements de stock pour un restaurant-bar : commandes au magasin, livraisons, réceptions avec écarts, sorties de fin de service et inventaires hebdomadaires. Elle permet d'importer les ventes caisse (CSV/Excel) et de produire un rapprochement valorisé en FCFA entre le stock théorique et les ventes réellement enregistrées. Cinq rôles (admin, magasinier, barman, cuisinier, comptable) disposent chacun d'un accès dédié à leurs écrans. L'interface est conçue mobile-first pour être utilisée directement sur smartphone en salle, au bar ou en cuisine.
 
-First, run the development server:
+## Prérequis
+
+- Node.js 18+ (recommandé : 20+)
+- Un compte [Neon](https://neon.tech) (ou toute base Postgres accessible)
+- Un compte [Vercel](https://vercel.com) pour le déploiement
+
+## Installation locale
 
 ```bash
+npm install
+cp .env.example .env.local
+# renseigner DATABASE_URL et SESSION_SECRET dans .env.local
+npm run db:migrate
+ADMIN_PASSWORD=<mot-de-passe-fort> npm run db:seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+L'application est alors disponible sur [http://localhost:3000](http://localhost:3000). Le compte admin créé par le seed permet ensuite de créer les autres comptes (magasinier, barman, cuisinier, comptable) depuis l'écran Utilisateurs.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Commande | Description |
+| --- | --- |
+| `npm run dev` | Démarre le serveur de développement |
+| `npm run build` | Construit l'application pour la production |
+| `npm test` | Lance la suite de tests (Vitest) |
+| `npm run test:watch` | Lance les tests en mode watch |
+| `npm run lint` | Vérifie le code avec ESLint |
+| `npm run db:generate` | Génère les migrations Drizzle à partir du schéma |
+| `npm run db:migrate` | Applique les migrations sur la base configurée |
+| `npm run db:seed` | Crée le compte admin initial (nécessite `ADMIN_PASSWORD`) |
 
-## Learn More
+## Tests
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm test
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Les tests utilisent Vitest et une base Postgres en mémoire (PGlite) : aucun serveur Postgres n'est nécessaire pour les exécuter.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Déploiement Vercel
 
-## Deploy on Vercel
+```bash
+npm i -g vercel
+vercel link
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Dashboard Vercel → Marketplace → Neon → créer la base (la variable `DATABASE_URL` est injectée automatiquement).
+2. Settings → Environment Variables → ajouter `SESSION_SECRET` (32+ caractères aléatoires).
+3. Récupérer les variables en local puis appliquer les migrations :
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   ```bash
+   vercel env pull .env.local
+   npm run db:migrate
+   ```
+
+4. Créer le compte admin initial :
+
+   ```bash
+   ADMIN_PASSWORD=<mot-de-passe-fort> npm run db:seed
+   ```
+
+5. Déployer en production :
+
+   ```bash
+   vercel --prod
+   ```
+
+## Recette manuelle (journée type)
+
+À jouer sur smartphone, sur l'URL de production, avec les comptes créés par l'admin :
+
+1. Admin : créer 3 produits (Castel casier×12, Poulet kg, Whisky L), 3 articles de vente avec fiches (« Castel 65cl » = 1 bouteille ; « Poulet DG » = 0.4 kg ; « Whisky (verre) » = 0.04 L), 1 compte par rôle.
+2. Barman : commander 3 casiers de Castel.
+3. Magasinier : livrer 2 casiers + 5 bouteilles (écart).
+4. Barman : confirmer 28 reçues (nouvel écart) → stock = 28.
+5. Barman : saisir sorties du service : 24 Castel.
+6. Comptable : uploader un CSV `Article;Quantité` avec `Castel 65cl;24` → rapprochement : écart 0. Refaire avec 26 vendues → écart −2 (−1 300 FCFA) affiché en rouge.
+7. Barman : inventaire — compter 3 (au lieu de 4 théorique) → écart −1 tracé, stock ajusté.
+8. Vérifier le tableau de bord comptable : valeurs, alertes, dernier inventaire.
+9. Vérifier les permissions : URL `/admin/produits` en tant que barman → redirigé.
+
+## Documentation
+
+La spécification complète du projet se trouve dans [docs/superpowers/specs/2026-07-11-gestion-stock-design.md](docs/superpowers/specs/2026-07-11-gestion-stock-design.md).
+
+## Comptes & rôles
+
+Le seed initial (`npm run db:seed`) ne crée qu'un compte administrateur, avec le mot de passe fourni via `ADMIN_PASSWORD`. Toutes les autres personnes (magasinier, barman, cuisinier, comptable) sont ensuite créées par l'admin depuis l'écran Utilisateurs de l'application — il n'y a pas d'inscription libre.

@@ -115,3 +115,6 @@ Détails notables :
 - Les montants FCFA se repèrent instantanément (ambre) ; les alertes sont impossibles à manquer, y compris en luminosité difficile.
 - Trouver un produit dans une liste de 100+ prend moins de 3 secondes (recherche + fréquents en premier).
 - Aucune régression : 87 tests verts, mêmes parcours, mêmes URLs.
+
+---
+**Amendement (12/07/2026, revue finale)** : l'exclusion « ni du schéma DB ni des migrations » (§8) est levée pour un unique ajout de performance : l'index `orders_location_created_idx` sur `orders(location_id, created_at)` (migration 0004), nécessaire à `getFrequentProducts` appelée à chaque affichage des écrans de saisie.

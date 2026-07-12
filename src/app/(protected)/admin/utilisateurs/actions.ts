@@ -2,15 +2,28 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
-import { formNumber } from '@/lib/forms';
+import { formNumber, formValues } from '@/lib/forms';
 import { createUser, setUserActive } from '@/lib/users';
 import type { Role } from '@/lib/auth';
 
-export type UserFormState = { error?: string };
+export type UserFormState = {
+  error?: string;
+  // En cas d'erreur : valeurs soumises à réinjecter en defaultValue, et compteur
+  // de tentatives servant de `key` côté client pour forcer le remontage des
+  // champs (React 19 réinitialise les champs non contrôlés à chaque soumission).
+  // Le mot de passe n'est volontairement PAS renvoyé (il ne doit pas transiter
+  // dans la réponse ni rester dans l'état client) : l'utilisateur le retape.
+  values?: Record<string, string>;
+  attempt?: number;
+};
 
-export async function createUserAction(_prev: UserFormState, formData: FormData):
+const FIELDS = ['name', 'username', 'role'] as const;
+
+export async function createUserAction(prev: UserFormState, formData: FormData):
   Promise<UserFormState> {
   await requireRole(['admin']);
+  const fail = (error?: string): UserFormState =>
+    ({ error, values: formValues(formData, FIELDS), attempt: (prev.attempt ?? 0) + 1 });
   let res: Awaited<ReturnType<typeof createUser>>;
   try {
     res = await createUser(db, {
@@ -22,10 +35,12 @@ export async function createUserAction(_prev: UserFormState, formData: FormData)
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser
     // fuiter une erreur DB brute vers le client.
-    return { error: 'Service indisponible, veuillez réessayer.' };
+    return fail('Service indisponible, veuillez réessayer.');
   }
-  if (!res.ok) return { error: res.error };
+  if (!res.ok) return fail(res.error);
   revalidatePath('/admin/utilisateurs');
+  // Succès : état vide → key repart à 0, les champs remontent vides (le reset
+  // automatique après soumission est le comportement souhaité en création).
   return {};
 }
 

@@ -2,14 +2,25 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
-import { formNumber } from '@/lib/forms';
+import { formNumber, formValues } from '@/lib/forms';
 import { saveProduct } from '@/lib/products';
 
-export type ProductFormState = { error?: string };
+export type ProductFormState = {
+  error?: string;
+  // En cas d'erreur : valeurs soumises à réinjecter en defaultValue, et compteur
+  // de tentatives servant de `key` côté client pour forcer le remontage des
+  // champs (React 19 réinitialise les champs non contrôlés à chaque soumission).
+  values?: Record<string, string>;
+  attempt?: number;
+};
 
-export async function saveProductAction(_prev: ProductFormState, formData: FormData):
+const FIELDS = ['name', 'category', 'baseUnit', 'packName', 'packSize', 'purchasePrice', 'alertThreshold'] as const;
+
+export async function saveProductAction(prev: ProductFormState, formData: FormData):
   Promise<ProductFormState> {
   await requireRole(['admin']);
+  const fail = (error?: string): ProductFormState =>
+    ({ error, values: formValues(formData, FIELDS), attempt: (prev.attempt ?? 0) + 1 });
   const num = (k: string) => formNumber(formData, k);
   let res: Awaited<ReturnType<typeof saveProduct>>;
   try {
@@ -27,9 +38,11 @@ export async function saveProductAction(_prev: ProductFormState, formData: FormD
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser
     // fuiter une erreur DB brute vers le client.
-    return { error: 'Service indisponible, veuillez réessayer.' };
+    return fail('Service indisponible, veuillez réessayer.');
   }
-  if (!res.ok) return { error: res.error };
+  if (!res.ok) return fail(res.error);
   revalidatePath('/admin/produits');
+  // Succès : état vide → key repart à 0, les champs remontent vides (le reset
+  // automatique après soumission est le comportement souhaité en création).
   return {};
 }

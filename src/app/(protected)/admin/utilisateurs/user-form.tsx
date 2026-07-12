@@ -7,12 +7,17 @@ import { FormError } from '@/components/ui/form-error';
 
 export function UserForm() {
   const [state, action, pending] = useActionState<UserFormState, FormData>(createUserAction, {});
+  // React 19 réinitialise les champs non contrôlés après chaque soumission,
+  // même en erreur : on réinjecte les valeurs soumises en defaultValue et la
+  // `key` (compteur de tentatives) force le remontage pour les appliquer.
+  // Le mot de passe n'est pas renvoyé par l'action : il faut le retaper.
+  const v = state.values ?? {};
   return (
-    <form action={action} className="bg-card border border-line rounded-xl p-4 grid grid-cols-2 gap-2 text-sm">
-      <Input name="name" placeholder="Nom complet *" required />
-      <Input name="username" placeholder="Identifiant *" required />
+    <form key={state.attempt ?? 0} action={action} className="bg-card border border-line rounded-xl p-4 grid grid-cols-2 gap-2 text-sm">
+      <Input name="name" defaultValue={v.name} placeholder="Nom complet *" required />
+      <Input name="username" defaultValue={v.username} placeholder="Identifiant *" required />
       <Input name="password" type="password" placeholder="Mot de passe * (8+ car.)" required />
-      <Select name="role" required>
+      <Select name="role" defaultValue={v.role} required>
         <option value="magasinier">Magasinier</option>
         <option value="barman">Barman</option>
         <option value="cuisinier">Cuisinier</option>

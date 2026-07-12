@@ -5,11 +5,37 @@ import { requireRole } from '@/lib/session';
 import { formNumber } from '@/lib/forms';
 import { saveSaleArticle } from '@/lib/sale-articles';
 
-export type ArticleFormState = { error?: string };
+export type ArticleFormState = {
+  error?: string;
+  // En cas d'erreur : valeurs soumises à réinjecter en defaultValue, et compteur
+  // de tentatives servant de `key` côté client pour forcer le remontage des
+  // champs (React 19 réinitialise les champs non contrôlés à chaque soumission).
+  // Les lignes de fiche technique sont renvoyées telles quelles (brutes),
+  // y compris les lignes vides, pour conserver la position de chaque champ.
+  values?: {
+    cashName: string;
+    locationId: string;
+    lines: Array<{ productId: string; qty: string }>;
+  };
+  attempt?: number;
+};
 
-export async function saveSaleArticleAction(_prev: ArticleFormState, formData: FormData):
+export async function saveSaleArticleAction(prev: ArticleFormState, formData: FormData):
   Promise<ArticleFormState> {
   await requireRole(['admin']);
+  const rawQtys = formData.getAll('lineQty');
+  const fail = (error?: string): ArticleFormState => ({
+    error,
+    values: {
+      cashName: String(formData.get('cashName') ?? ''),
+      locationId: String(formData.get('locationId') ?? ''),
+      lines: formData.getAll('lineProduct').map((p, i) => ({
+        productId: String(p),
+        qty: String(rawQtys[i] ?? ''),
+      })),
+    },
+    attempt: (prev.attempt ?? 0) + 1,
+  });
   const num = (k: string) => formNumber(formData, k);
   // Champ de ligne → nombre fini ou null (vide/forgé → null), même contrat que formNumber.
   const parse = (v: FormDataEntryValue): number | null => {
@@ -25,7 +51,7 @@ export async function saveSaleArticleAction(_prev: ArticleFormState, formData: F
   // explicite plutôt qu'un abandon silencieux de la ligne. Les lignes
   // entièrement vides restent ignorées (emplacements de formulaire inutilisés).
   if (rows.some((r) => (r.productId == null) !== (r.qty == null))) {
-    return { error: 'Ligne incomplète : chaque ingrédient doit avoir un produit ET une quantité' };
+    return fail('Ligne incomplète : chaque ingrédient doit avoir un produit ET une quantité');
   }
   const lines = rows.filter(
     (r): r is { productId: number; qty: number } => r.productId != null && r.qty != null,
@@ -41,9 +67,11 @@ export async function saveSaleArticleAction(_prev: ArticleFormState, formData: F
   } catch {
     // Convention maison (cf. src/app/login/actions.ts) : ne jamais laisser
     // fuiter une erreur DB brute vers le client.
-    return { error: 'Service indisponible, veuillez réessayer.' };
+    return fail('Service indisponible, veuillez réessayer.');
   }
-  if (!res.ok) return { error: res.error };
+  if (!res.ok) return fail(res.error);
   revalidatePath('/admin/articles');
+  // Succès : état vide → key repart à 0, les champs remontent vides (le reset
+  // automatique après soumission est le comportement souhaité en création).
   return {};
 }

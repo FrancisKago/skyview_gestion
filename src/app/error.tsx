@@ -1,7 +1,8 @@
 'use client';
 
-// Error boundary global : intercepte notamment le throw de requireRole()
-// (accès refusé) pour éviter l'écran de crash par défaut de Next.
+// Error boundary global : intercepte les exceptions inattendues (DB, rendu…) pour
+// éviter l'écran de crash par défaut de Next. Les refus d'accès n'arrivent plus ici :
+// requireRole() redirige directement vers /login depuis le durcissement post-v1.
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   void error;
   return (

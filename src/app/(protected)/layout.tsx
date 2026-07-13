@@ -23,6 +23,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: '/compta', label: 'Tableau', icon: 'compta' },
     { href: '/compta/imports', label: 'Ventes', icon: 'imports' },
     { href: '/compta/rapprochements', label: 'Rapproch.', icon: 'rapprochements' },
+    { href: '/compta/mouvements', label: 'Mouvements', icon: 'mouvements' },
   ],
   admin: [
     { href: '/admin/produits', label: 'Produits', icon: 'produits' },

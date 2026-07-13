@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import {
   BarChart3, ShoppingCart, PackageOpen, CalendarClock, ClipboardList,
   Truck, LayoutDashboard, Upload, Scale, Package, ReceiptText, Users, Wrench, FileUp,
+  ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -12,7 +13,7 @@ const ICONS: Record<string, LucideIcon> = {
   sorties: CalendarClock, inventaire: ClipboardList, livraisons: Truck,
   compta: LayoutDashboard, imports: Upload, rapprochements: Scale,
   produits: Package, articles: ReceiptText, utilisateurs: Users, ajustements: Wrench,
-  fichiers: FileUp,
+  fichiers: FileUp, mouvements: ArrowLeftRight,
 };
 
 export interface NavItem { href: string; label: string; icon: keyof typeof ICONS }

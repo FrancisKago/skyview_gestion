@@ -74,6 +74,8 @@ vercel link
 
 ## Recette manuelle (journée type)
 
+Partout où un produit ou un article est demandé (commandes, sorties, fiches techniques, ajustements, correspondance caisse, filtres des mouvements), la saisie se fait par autocomplétion : taper les premières lettres puis choisir une suggestion.
+
 À jouer sur smartphone, sur l'URL de production, avec les comptes créés par l'admin :
 
 1. Admin : créer 3 produits (Castel casier×12, Poulet kg, Whisky L), 3 articles de vente avec fiches (« Castel 65cl » = 1 bouteille ; « Poulet DG » = 0.4 kg ; « Whisky (verre) » = 0.04 L), 1 compte par rôle.

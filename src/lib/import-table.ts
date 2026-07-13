@@ -29,12 +29,24 @@ export function parseTable(buffer: Buffer, filename: string, expectedHeaders: st
   }
   if (!rows.length) return { ok: false, rows: [], error: 'Fichier vide' };
 
-  const headerRow = rows[0].map((h) => String(h ?? '').trim()).filter((h) => h !== '');
+  // En-têtes durcis (spec durcissement §2) : les cellules vides en FIN de ligne sont
+  // tolérées (artefact d'export Excel), mais une cellule vide AU MILIEU décalerait
+  // silencieusement les colonnes de données -> rejet explicite. Doublons rejetés
+  // (le second écraserait le premier dans `cells`).
+  const headerRow = rows[0].map((h) => String(h ?? '').trim());
+  while (headerRow.length && headerRow[headerRow.length - 1] === '') headerRow.pop();
   const byNormalized = new Map(expectedHeaders.map((h) => [normalizeText(h), h]));
   const mapping: string[] = []; // index de colonne -> en-tête canonique
-  for (const h of headerRow) {
+  const seen = new Set<string>();
+  for (let i = 0; i < headerRow.length; i++) {
+    const h = headerRow[i];
+    if (h === '') {
+      return { ok: false, rows: [], error: `Colonne d'en-tête vide (position ${i + 1})` };
+    }
     const canonical = byNormalized.get(normalizeText(h));
     if (!canonical) return { ok: false, rows: [], error: `Colonne inconnue : « ${h} »` };
+    if (seen.has(canonical)) return { ok: false, rows: [], error: `Colonne en double : « ${h} »` };
+    seen.add(canonical);
     mapping.push(canonical);
   }
   const missing = expectedHeaders.filter((h) => !mapping.includes(h));

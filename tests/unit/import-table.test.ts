@@ -48,3 +48,21 @@ describe('toNumber', () => {
     expect(toNumber('')).toBeNull();
   });
 });
+
+describe('parseTable — en-têtes durcis', () => {
+  it("rejette une cellule d'en-tête vide au milieu, avec sa position", () => {
+    const res = parseTable(csv('Nom;;Prix\nX;;1\n'), 'x.csv', HEADERS);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('position 2');
+  });
+  it('rejette un en-tête en double (comparaison normalisée)', () => {
+    const res = parseTable(csv('Nom;NOM;Prix\nX;Y;1\n'), 'x.csv', HEADERS);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('double');
+  });
+  it("tolère les cellules vides en FIN de ligne d'en-tête (artefact Excel)", () => {
+    const res = parseTable(csv('Nom;Catégorie;Prix;;\nCastel;Bières;650;;\n'), 'x.csv', HEADERS);
+    expect(res.ok).toBe(true);
+    expect(res.rows[0].cells['Prix']).toBe('650');
+  });
+});

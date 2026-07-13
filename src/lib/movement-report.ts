@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import { stockMovements, products, users } from '@/db/schema';
 import { round3 } from './units';
+import { MOVEMENT_LABELS } from './movement-labels';
 import type { AnyDb } from '@/db';
 
 export interface MovementReportLine {
@@ -13,13 +14,6 @@ export interface MovementDetailLine {
   createdAt: Date; type: string; typeLabel: string;
   qty: number; reason: string | null; userName: string;
 }
-
-export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
-  reception: 'Réception',
-  sortie_service: 'Sortie service',
-  ajustement_inventaire: 'Ajustement inventaire',
-  ajustement_admin: 'Ajustement admin',
-};
 
 // Bornes en jours pleins : « du » à 00:00:00 inclus, « au » à 23:59:59.999 inclus
 // (createdAt est un timestamp ; le comptable raisonne en jours). Datation par
@@ -110,7 +104,7 @@ export async function getMovementDetail(db: AnyDb, opts: {
       .orderBy(asc(stockMovements.createdAt), asc(stockMovements.id));
   return rows.map((r) => ({
     createdAt: r.createdAt, type: r.type,
-    typeLabel: MOVEMENT_TYPE_LABELS[r.type] ?? r.type,
+    typeLabel: MOVEMENT_LABELS[r.type] ?? r.type,
     qty: round3(Number(r.qty)), reason: r.reason, userName: r.userName,
   }));
 }

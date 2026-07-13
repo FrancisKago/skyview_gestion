@@ -5,11 +5,6 @@ import { parseTable, toNumber } from '@/lib/import-table';
 const HEADERS = ['Nom', 'Catégorie', 'Prix'];
 
 function csv(content: string): Buffer { return Buffer.from(content, 'utf-8'); }
-function xlsxBuf(rows: (string | number)[][]): Buffer {
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Feuille1');
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-}
 
 describe('parseTable', () => {
   it('reconnaît les en-têtes normalisés (casse/accents) et numérote les lignes', () => {

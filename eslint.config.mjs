@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Worktrees de sessions Claude (artefacts .next non lintables).
+    ".claude/**",
   ]),
 ]);
 

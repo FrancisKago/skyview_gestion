@@ -21,9 +21,12 @@ export async function recordAdjustment(db: AnyDb, input: RecordAdjustmentInput):
   if (!Number.isFinite(input.qty)) return { ok: false, error: 'La quantité doit être un nombre' };
   if (!input.qty) return { ok: false, error: 'La quantité ne peut pas être nulle' };
 
-  const [product] = await db.select({ id: products.id }).from(products)
-    .where(eq(products.id, input.productId));
+  const [product] = await db.select({ id: products.id, name: products.name, active: products.active })
+    .from(products).where(eq(products.id, input.productId));
   if (!product) return { ok: false, error: 'Produit inconnu' };
+  // Garde serveur (spec durcissement §4) : l'UI filtre déjà les inactifs,
+  // ceci bloque les POST forgés.
+  if (!product.active) return { ok: false, error: `Produit désactivé : « ${product.name} »` };
 
   const [location] = await db.select({ id: locations.id, type: locations.type }).from(locations)
     .where(eq(locations.id, input.locationId));

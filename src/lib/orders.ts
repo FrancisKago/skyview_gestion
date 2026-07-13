@@ -28,11 +28,15 @@ export async function createOrder(db: AnyDb, input: CreateOrderInput):
     byProduct.set(l.productId, round3((byProduct.get(l.productId) ?? 0) + l.qtyRequested));
   }
   const productIds = [...byProduct.keys()];
-  const found = await db.select({ id: products.id }).from(products)
-    .where(inArray(products.id, productIds));
+  const found = await db.select({ id: products.id, name: products.name, active: products.active })
+    .from(products).where(inArray(products.id, productIds));
   if (found.length !== productIds.length) {
     return { ok: false, error: 'Produit inconnu dans la commande' };
   }
+  // Garde serveur (spec durcissement §4) : l'UI filtre déjà les inactifs,
+  // ceci bloque les POST forgés.
+  const inactive = found.find((p: { active: boolean }) => !p.active);
+  if (inactive) return { ok: false, error: `Produit désactivé : « ${inactive.name} »` };
   const [order] = await db.insert(orders)
     .values({ locationId: input.locationId, createdBy: input.createdBy })
     .returning();

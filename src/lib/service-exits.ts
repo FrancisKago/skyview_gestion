@@ -57,11 +57,15 @@ export async function recordServiceExit(db: AnyDb, input: RecordServiceExitInput
   // Vérification d'existence des produits AVANT toute écriture (cf. createOrder) : sans elle,
   // la contrainte FK de service_exit_lines ne claquerait qu'APRÈS l'insert de la sortie,
   // laissant une sortie orpheline sans lignes.
-  const found = await db.select({ id: products.id, name: products.name }).from(products)
-    .where(inArray(products.id, productIds));
+  const found = await db.select({ id: products.id, name: products.name, active: products.active })
+    .from(products).where(inArray(products.id, productIds));
   if (found.length !== productIds.length) {
     return { ok: false, error: 'Produit inconnu dans la saisie' };
   }
+  // Garde serveur (spec durcissement §4) : l'UI filtre déjà les inactifs,
+  // ceci bloque les POST forgés.
+  const inactive = found.find((p: { active: boolean }) => !p.active);
+  if (inactive) return { ok: false, error: `Produit désactivé : « ${inactive.name} »` };
   const nameById = new Map<number, string>(found.map((p: { id: number; name: string }) => [p.id, p.name]));
 
   // Avertissements stock négatif (règle métier : alerter sans bloquer, une sortie réelle

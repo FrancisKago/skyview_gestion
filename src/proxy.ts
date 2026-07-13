@@ -13,7 +13,7 @@ const RULES: Array<[string, Role[]]> = [
   ['/inventaire', ['barman', 'cuisinier']],
 ];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const rule = RULES.find(([prefix]) =>
     pathname === prefix || pathname.startsWith(prefix + '/'));

@@ -4,7 +4,7 @@ import { verifySessionToken, SESSION_COOKIE, type Session, type Role } from './a
 
 // Ré-exporté ici pour la commodité des imports côté serveur (Server Actions / pages).
 // Défini dans './auth' (module pur, sans `next/headers`) pour rester importable
-// depuis le middleware sans tirer de dépendances serveur incompatibles avec l'Edge runtime.
+// depuis le proxy sans tirer de dépendances serveur incompatibles avec l'Edge runtime.
 export { SESSION_COOKIE };
 
 export async function getSession(): Promise<Session | null> {

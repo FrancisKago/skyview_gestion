@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from 'jose';
 export type Role = 'admin' | 'magasinier' | 'barman' | 'cuisinier' | 'comptable';
 
 // Nom du cookie de session. Défini ici (module pur, sans `next/headers`) pour rester
-// importable depuis le middleware (Edge runtime) sans tirer de dépendances serveur.
+// importable depuis le proxy (Edge runtime) sans tirer de dépendances serveur.
 export const SESSION_COOKIE = 'skyview_session';
 
 export interface Session {

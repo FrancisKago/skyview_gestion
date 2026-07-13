@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session';
 import { buildTemplate } from '@/lib/templates';
 
 // GET /admin/imports/template?type=produits|articles&format=xlsx|csv
-// Le middleware protège déjà /admin/* ; on revérifie le rôle par défense en profondeur.
+// Le proxy protège déjà /admin/* ; on revérifie le rôle par défense en profondeur.
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session || session.role !== 'admin') {

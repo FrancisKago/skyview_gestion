@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
+import { MAX_UPLOAD_BYTES } from '@/lib/import-table';
 import { parseSalesFile } from '@/lib/sales-file';
 import { storeSalesImport, matchImportLine } from '@/lib/sales-imports';
 import { formNumber } from '@/lib/forms';
@@ -16,6 +17,7 @@ export async function uploadSalesAction(
   const file = formData.get('file') as File | null;
   const serviceDate = String(formData.get('serviceDate') ?? '').trim();
   if (!file || !file.size) return { error: 'Choisissez un fichier CSV ou Excel' };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: 'Fichier trop volumineux (4 Mo maximum)' };
   const parsed = parseSalesFile(Buffer.from(await file.arrayBuffer()), file.name);
   if (!parsed.ok) return { error: parsed.error };
   let res: Awaited<ReturnType<typeof storeSalesImport>>;

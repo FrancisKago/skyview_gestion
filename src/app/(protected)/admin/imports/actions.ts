@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
-import { parseTable } from '@/lib/import-table';
+import { parseTable, MAX_UPLOAD_BYTES } from '@/lib/import-table';
 import { PRODUCT_HEADERS, ARTICLE_HEADERS } from '@/lib/templates';
 import { importProducts, type ImportReport } from '@/lib/import-products';
 import { importArticles } from '@/lib/import-articles';
@@ -18,6 +18,7 @@ async function runImport(
   await requireRole(['admin']);
   const file = formData.get('file') as File | null;
   if (!file || !file.size) return { error: 'Choisissez un fichier CSV ou Excel' };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: 'Fichier trop volumineux (4 Mo maximum)' };
   const update = formData.get('update') === 'on';
   const parsed = parseTable(Buffer.from(await file.arrayBuffer()), file.name, [...headers]);
   if (!parsed.ok) return { error: parsed.error };

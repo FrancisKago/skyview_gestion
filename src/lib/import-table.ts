@@ -1,6 +1,10 @@
 import * as XLSX from 'xlsx';
 import { normalizeText } from './text';
 
+// Plafond d'upload des imports (la plateforme limite le corps de requête à ~4,5 Mo ;
+// un catalogue réel fait quelques dizaines de Ko). Spec durcissement §3.
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
 export interface ParsedRow { line: number; cells: Record<string, string> }
 export interface TableParseResult { ok: boolean; rows: ParsedRow[]; error?: string }
 

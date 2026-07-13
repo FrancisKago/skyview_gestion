@@ -18,18 +18,23 @@ export function AdjustmentForm({ products, locations }: {
   useEffect(() => {
     if (state.success) formRef.current?.reset();
   }, [state]);
+  // React 19 réinitialise les champs non contrôlés après chaque soumission,
+  // même en erreur : on réinjecte les valeurs soumises en defaultValue et la
+  // `key` (compteur de tentatives) force le remontage pour les appliquer.
+  // Après succès, l'état ne porte ni values ni attempt → reset conservé.
+  const v = state.values ?? {};
   return (
-    <form ref={formRef} action={action} className="bg-card border border-line rounded-xl p-4 grid grid-cols-2 gap-2 text-sm">
-      <Select name="productId" required defaultValue="">
+    <form ref={formRef} key={state.attempt ?? 0} action={action} className="bg-card border border-line rounded-xl p-4 grid grid-cols-2 gap-2 text-sm">
+      <Select name="productId" required defaultValue={v.productId ?? ''}>
         <option value="">— produit —</option>
         {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.baseUnit})</option>)}
       </Select>
-      <Select name="locationId" required defaultValue="">
+      <Select name="locationId" required defaultValue={v.locationId ?? ''}>
         <option value="">— emplacement —</option>
         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
       </Select>
-      <Input name="qty" type="number" step="0.001" placeholder="Quantité (+/−)" required />
-      <Input name="reason" placeholder="Motif obligatoire" required />
+      <Input name="qty" type="number" step="0.001" placeholder="Quantité (+/−)" defaultValue={v.qty} required />
+      <Input name="reason" placeholder="Motif obligatoire" defaultValue={v.reason} required />
       <div className="col-span-2"><FormError message={state.error} /></div>
       {state.success && (
         <p className="text-success font-semibold col-span-2">Ajustement enregistré</p>

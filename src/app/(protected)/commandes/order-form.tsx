@@ -33,6 +33,13 @@ export function OrderForm({ groups }: { groups: Array<ProductGroup<Prod>> }) {
       setSelected({});
     }
   }, [state]);
+  // React 19 réinitialise les champs non contrôlés après chaque soumission,
+  // même en erreur : on réinjecte les quantités soumises en defaultValue et la
+  // `key` (compteur de tentatives) force le remontage du <form> pour les
+  // appliquer. Les selects contrôlés (état `selected` porté par le composant,
+  // hors du sous-arbre remonté) conservent d'eux-mêmes leur valeur.
+  const v = state.values;
+  const count = Math.max(lineCount, v?.lines.length ?? 0);
   // Options de la ligne i : le produit déjà sélectionné reste épinglé même si la
   // recherche l'exclut — sinon son <option> disparaîtrait et le choix serait perdu.
   const optionsFor = (i: number) => groups
@@ -42,10 +49,10 @@ export function OrderForm({ groups }: { groups: Array<ProductGroup<Prod>> }) {
     }))
     .filter((g) => g.products.length > 0);
   return (
-    <form ref={formRef} action={action} className="bg-card border border-line rounded-xl p-4 space-y-3 text-sm">
+    <form ref={formRef} key={state.attempt ?? 0} action={action} className="bg-card border border-line rounded-xl p-4 space-y-3 text-sm">
       <p className="font-semibold text-cream">Nouvelle commande (en unités de base) :</p>
       <SearchBox value={query} onChange={setQuery} />
-      {Array.from({ length: lineCount }).map((_, i) => (
+      {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="flex gap-2">
           <Select name="lineProduct" className="flex-1" value={selected[i] ?? ''}
             onChange={(e) => setSelected((s) => ({ ...s, [i]: e.target.value }))}>
@@ -61,10 +68,10 @@ export function OrderForm({ groups }: { groups: Array<ProductGroup<Prod>> }) {
             ))}
           </Select>
           <Input name="lineQty" type="number" step="0.001" min="0" placeholder="Qté"
-            className="w-24" inputMode="decimal" />
+            className="w-24" inputMode="decimal" defaultValue={v?.lines[i]?.qty} />
         </div>
       ))}
-      <Button variant="ghost" type="button" onClick={() => setLineCount(lineCount + 2)}
+      <Button variant="ghost" type="button" onClick={() => setLineCount(count + 2)}
         className="min-h-9 px-3 text-xs">+ Ajouter des lignes</Button>
       <FormError message={state.error} />
       {state.success && <p className="text-success font-semibold">Commande envoyée ✓</p>}

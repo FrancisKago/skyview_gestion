@@ -61,4 +61,18 @@ describe('buildMovementExport', () => {
     expect(rows[1][0]).toBe('Castel');
     expect(rows[1][6]).toBe(10.6); // Stock final numérique dans Excel
   });
+  it('csv : champs texte avec ; ou " échappés RFC 4180 (guillemets doublés)', () => {
+    const line = {
+      productId: 1, name: 'Sirop; grenadine "spécial"', baseUnit: 'litre',
+      initial: 1, receptions: 2, sorties: 0.5, ajustements: 0, final: 2.5,
+      initialValue: 1000, finalValue: 2500,
+      receptionsValue: 2000, sortiesValue: 500, ajustementsValue: 0,
+    };
+    const t = buildMovementExport([{ locationName: 'Bar', lines: [line] }], {
+      format: 'csv', from: '2026-03-01', to: '2026-03-31',
+    });
+    const [, row] = t.buffer.toString('utf-8').slice(1).trim().split('\n');
+    expect(row).toContain('"Sirop; grenadine ""spécial"""');
+    expect(row).toBe('Bar;"Sirop; grenadine ""spécial""";litre;1;2;0,5;0;2,5;1000;2000;500;0;2500');
+  });
 });

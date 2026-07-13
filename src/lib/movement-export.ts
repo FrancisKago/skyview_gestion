@@ -14,6 +14,10 @@ const nums = (l: MovementReportLine): number[] => [
   l.initialValue, l.receptionsValue, l.sortiesValue, l.ajustementsValue, l.finalValue,
 ];
 
+// RFC 4180 : un champ contenant ; " ou un saut de ligne est mis entre guillemets,
+// les guillemets internes doublés (les noms de produits sont du texte libre).
+const csvField = (v: string) => /[;"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+
 // Export du rapport de mouvements (spec durcissement §7). CSV : BOM UTF-8, séparateur ;,
 // virgule décimale (conventions templates), colonne Emplacement en tête. xlsx : une
 // feuille par emplacement, valeurs numériques natives.
@@ -24,7 +28,7 @@ export function buildMovementExport(sections: MovementExportSection[], opts: {
   if (opts.format === 'csv') {
     const fr = (n: number) => String(n).replace('.', ',');
     const rows = sections.flatMap((s) => s.lines.map((l) =>
-      [s.locationName, l.name, l.baseUnit, ...nums(l).map(fr)].join(';')));
+      [...[s.locationName, l.name, l.baseUnit].map(csvField), ...nums(l).map(fr)].join(';')));
     const content = ['Emplacement;' + HEADERS.join(';'), ...rows].join('\n') + '\n';
     return {
       buffer: Buffer.from('\ufeff' + content, 'utf-8'),

@@ -127,6 +127,15 @@ export default async function MouvementsPage({ searchParams }: {
         </form>
       </Card>
 
+      <p className="text-sm text-muted">
+        Exporter :{' '}
+        <a href={`/compta/mouvements/export?${baseQuery.toString()}&format=csv`}
+          className="text-action underline underline-offset-4">CSV</a>
+        {' · '}
+        <a href={`/compta/mouvements/export?${baseQuery.toString()}&format=xlsx`}
+          className="text-action underline underline-offset-4">Excel</a>
+      </p>
+
       {article && (
         <Card tone="warning" className="p-3 text-warning text-sm">
           Filtré sur les ingrédients de « {article.cashName} » : {articleIngredients.join(', ') || 'aucun'}.

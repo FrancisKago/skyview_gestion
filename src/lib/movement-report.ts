@@ -8,6 +8,7 @@ export interface MovementReportLine {
   productId: number; name: string; baseUnit: string;
   initial: number; receptions: number; sorties: number; ajustements: number; final: number;
   initialValue: number; finalValue: number; // FCFA
+  receptionsValue: number; sortiesValue: number; ajustementsValue: number; // FCFA
 }
 
 export interface MovementDetailLine {
@@ -81,6 +82,9 @@ export async function getMovementReport(db: AnyDb, opts: {
         ajustements: e.ajustements, final,
         initialValue: Math.round(e.initial * info.purchasePrice),
         finalValue: Math.round(final * info.purchasePrice),
+        receptionsValue: Math.round(e.receptions * info.purchasePrice),
+        sortiesValue: Math.round(e.sorties * info.purchasePrice),
+        ajustementsValue: Math.round(e.ajustements * info.purchasePrice),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'));

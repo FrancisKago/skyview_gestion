@@ -1,4 +1,6 @@
 import { drizzle } from 'drizzle-orm/neon-http';
+import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { neon } from '@neondatabase/serverless';
 import * as schema from './schema';
 
@@ -11,6 +13,7 @@ const sql = neon(process.env.DATABASE_URL ?? 'postgres://user:pass@localhost/db'
 export const db = drizzle(sql, { schema });
 export type Db = typeof db;
 
-// Accepte le client Neon comme le client PGlite des tests.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyDb = any;
+// Union réelle des deux clients (prod Neon HTTP, tests PGlite) — remplace le `any`
+// historique. Types effacés à la compilation ; @electric-sql/pglite est en devDeps,
+// disponible pour tsc au build.
+export type AnyDb = NeonHttpDatabase<typeof schema> | PgliteDatabase<typeof schema>;

@@ -1,4 +1,6 @@
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import type * as schema from '@/db/schema';
 import {
   salesImports, salesImportLines, saleArticles, products, recipeLines,
   serviceExits, serviceExitLines,
@@ -65,7 +67,11 @@ export async function matchImportLine(db: AnyDb, input: {
   // même orthographe brute (à la casse près) sont associées au même article — la
   // même orthographe peut apparaître dans plusieurs imports en attente, inutile de
   // demander la même association plusieurs fois.
-  const others: Array<{ id: number }> = await db.update(salesImportLines)
+  // `.returning(champs)` ne s'unifie pas sur l'union AnyDb (TS ne synthétise que la
+  // surcharge sans argument) ; on élargit localement vers le supertype PgDatabase
+  // commun aux deux clients — simple annotation, aucune conversion.
+  const pgDb: PgDatabase<PgQueryResultHKT, typeof schema> = db;
+  const others: Array<{ id: number }> = await pgDb.update(salesImportLines)
     .set({ saleArticleId: target.id })
     .where(and(
       ne(salesImportLines.id, input.lineId),

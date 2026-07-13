@@ -15,7 +15,7 @@
 ## Structure des fichiers
 
 ```
-src/lib/movement-report.ts             # NOUVEAU : getMovementReport, getMovementDetail, MOVEMENT_TYPE_LABELS
+src/lib/movement-report.ts             # NOUVEAU : getMovementReport, getMovementDetail (libellés via movement-labels.ts existant)
 src/app/(protected)/compta/mouvements/page.tsx   # NOUVEAU : page serveur, filtres GET
 src/app/(protected)/layout.tsx         # MODIFIÉ : 4ᵉ entrée nav comptable (ajout pur)
 src/components/ui/bottom-nav.tsx       # MODIFIÉ : icône 'mouvements' (ArrowLeftRight, ajout pur)
@@ -174,12 +174,10 @@ export interface MovementDetailLine {
   qty: number; reason: string | null; userName: string;
 }
 
-export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
-  reception: 'Réception',
-  sortie_service: 'Sortie service',
-  ajustement_inventaire: 'Ajustement inventaire',
-  ajustement_admin: 'Ajustement admin',
-};
+// Libellés : RÉUTILISER src/lib/movement-labels.ts (déjà utilisé par la page
+// ajustements admin) — ne PAS déclarer un map local.
+// import { MOVEMENT_LABELS } from './movement-labels';
+// Valeurs existantes : Réception · Sortie de service · Ajustement inventaire · Ajustement admin.
 
 // Bornes en jours pleins : « du » à 00:00:00 inclus, « au » à 23:59:59.999 inclus
 // (createdAt est un timestamp ; le comptable raisonne en jours). Datation par
@@ -270,7 +268,7 @@ export async function getMovementDetail(db: AnyDb, opts: {
       .orderBy(asc(stockMovements.createdAt), asc(stockMovements.id));
   return rows.map((r) => ({
     createdAt: r.createdAt, type: r.type,
-    typeLabel: MOVEMENT_TYPE_LABELS[r.type] ?? r.type,
+    typeLabel: MOVEMENT_LABELS[r.type] ?? r.type,
     qty: round3(Number(r.qty)), reason: r.reason, userName: r.userName,
   }));
 }
@@ -309,7 +307,7 @@ describe('getMovementDetail', () => {
     const detail = await getMovementDetail(db, {
       from: '2026-03-01', to: '2026-03-31', locationId: bar.id, productId: castel.id!,
     });
-    expect(detail.map((d) => d.typeLabel)).toEqual(['Réception', 'Sortie service', 'Ajustement admin']); // ordre chrono
+    expect(detail.map((d) => d.typeLabel)).toEqual(['Réception', 'Sortie de service', 'Ajustement admin']); // ordre chrono — libellés de src/lib/movement-labels.ts
     expect(detail[1].qty).toBe(-3);
     expect(detail[2].reason).toBe('Casse comptée en trop');
     expect(detail[0].userName).toBe('Bar');

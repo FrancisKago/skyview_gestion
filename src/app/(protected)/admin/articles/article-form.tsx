@@ -3,6 +3,7 @@ import { useActionState, useState } from 'react';
 import { saveSaleArticleAction, type ArticleFormState } from './actions';
 import { Input, Select } from '@/components/ui/fields';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import { FormError } from '@/components/ui/form-error';
 
 type Prod = { id: number; name: string; baseUnit: string };
@@ -25,6 +26,9 @@ export function ArticleForm({ products, locations, initial }: {
   // après succès en création, l'état vide fait remonter des champs vides.
   const v = state.values;
   const count = Math.max(lineCount, v?.lines.length ?? 0);
+  // Options du Combobox : les noms « (inactif) » injectés par la page en
+  // édition sont des labels comme les autres.
+  const options = products.map((p) => ({ id: p.id, label: p.name, sublabel: p.baseUnit }));
   return (
     <form key={state.attempt ?? 0} action={action} className="bg-card border border-line rounded-xl p-4 space-y-2 text-sm">
       {initial && <input type="hidden" name="id" value={initial.id} />}
@@ -39,13 +43,9 @@ export function ArticleForm({ products, locations, initial }: {
       <p className="font-semibold text-cream">Fiche technique (consommation par vente) :</p>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="flex gap-2">
-          <Select name="lineProduct" className="flex-1"
-            defaultValue={v ? v.lines[i]?.productId ?? '' : initial?.lines[i]?.productId ?? ''}>
-            <option value="">— produit —</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name} ({p.baseUnit})</option>
-            ))}
-          </Select>
+          <Combobox name="lineProduct" className="flex-1" placeholder="Produit…"
+            options={options}
+            defaultValue={v ? v.lines[i]?.productId : initial?.lines[i]?.productId} />
           <Input name="lineQty" type="number" step="0.001" placeholder="Qté"
             className="w-24" defaultValue={v ? v.lines[i]?.qty ?? '' : initial?.lines[i]?.qty ?? ''} />
         </div>

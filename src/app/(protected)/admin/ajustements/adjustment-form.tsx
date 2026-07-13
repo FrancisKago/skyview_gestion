@@ -3,6 +3,7 @@ import { useActionState, useEffect, useRef } from 'react';
 import { recordAdjustmentAction } from './actions';
 import { Input, Select } from '@/components/ui/fields';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import { FormError } from '@/components/ui/form-error';
 
 export function AdjustmentForm({ products, locations }: {
@@ -25,10 +26,9 @@ export function AdjustmentForm({ products, locations }: {
   const v = state.values ?? {};
   return (
     <form ref={formRef} key={state.attempt ?? 0} action={action} className="bg-card border border-line rounded-xl p-4 grid grid-cols-2 gap-2 text-sm">
-      <Select name="productId" required defaultValue={v.productId ?? ''}>
-        <option value="">— produit —</option>
-        {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.baseUnit})</option>)}
-      </Select>
+      <Combobox name="productId" required placeholder="Produit…"
+        options={products.map((p) => ({ id: p.id, label: p.name, sublabel: p.baseUnit }))}
+        defaultValue={v.productId || undefined} />
       <Select name="locationId" required defaultValue={v.locationId ?? ''}>
         <option value="">— emplacement —</option>
         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}

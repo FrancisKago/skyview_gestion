@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createTestDb, seedBase } from '../helpers/db';
 import { saveProduct } from '@/lib/products';
-import { getMovementReport } from '@/lib/movement-report';
+import { getMovementDetail, getMovementReport } from '@/lib/movement-report';
 import { stockMovements } from '@/db/schema';
 
 type Mv = {
@@ -108,5 +108,45 @@ describe('getMovementReport', () => {
     const [l] = await getMovementReport(db, { from: '2026-03-01', to: '2026-03-31', locationId: bar.id });
     expect(l.initialValue).toBe(6500);       // 10 × 650
     expect(l.finalValue).toBe(4875);         // 7,5 × 650
+  });
+});
+
+describe('getMovementDetail', () => {
+  it('journal chronologique : libellés français, quantité signée, motif et utilisateur', async () => {
+    const db = await createTestDb();
+    const { bar, barman, admin } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    await insertMovements(db, [
+      { productId: castel.id!, locationId: bar.id, type: 'sortie_service', qty: -3, userId: barman.id, createdAt: '2026-03-10T22:00:00' },
+      { productId: castel.id!, locationId: bar.id, type: 'reception', qty: 12, userId: barman.id, createdAt: '2026-03-05T10:00:00' },
+    ]);
+    await db.insert(stockMovements).values({
+      productId: castel.id!, locationId: bar.id, type: 'ajustement_admin',
+      qty: '2', reason: 'Casse comptée en trop', userId: admin.id,
+      createdAt: new Date('2026-03-15T11:00:00'),
+    });
+    const detail = await getMovementDetail(db, {
+      from: '2026-03-01', to: '2026-03-31', locationId: bar.id, productId: castel.id!,
+    });
+    expect(detail.map((d) => d.typeLabel)).toEqual(['Réception', 'Sortie de service', 'Ajustement admin']); // ordre chrono — libellés de src/lib/movement-labels.ts
+    expect(detail[1].qty).toBe(-3);
+    expect(detail[2].reason).toBe('Casse comptée en trop');
+    expect(detail[0].userName).toBe('Bar');
+    expect(detail[2].userName).toBe('Admin');
+  });
+  it('respecte les bornes de période et le couple (produit, emplacement)', async () => {
+    const db = await createTestDb();
+    const { bar, cuisine, barman } = await seedBase(db);
+    const castel = await saveProduct(db, { name: 'Castel', baseUnit: 'bouteille', purchasePrice: 650 });
+    await insertMovements(db, [
+      { productId: castel.id!, locationId: bar.id, type: 'reception', qty: 5, userId: barman.id, createdAt: '2026-02-20T10:00:00' },  // hors période
+      { productId: castel.id!, locationId: bar.id, type: 'reception', qty: 6, userId: barman.id, createdAt: '2026-03-05T10:00:00' },
+      { productId: castel.id!, locationId: cuisine.id, type: 'reception', qty: 7, userId: barman.id, createdAt: '2026-03-06T10:00:00' }, // autre emplacement
+    ]);
+    const detail = await getMovementDetail(db, {
+      from: '2026-03-01', to: '2026-03-31', locationId: bar.id, productId: castel.id!,
+    });
+    expect(detail).toHaveLength(1);
+    expect(detail[0].qty).toBe(6);
   });
 });

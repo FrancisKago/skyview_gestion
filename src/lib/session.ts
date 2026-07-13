@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { verifySessionToken, SESSION_COOKIE, type Session, type Role } from './auth';
+import { db } from '@/db';
+import { freshRoleIfAllowed } from './session-freshness';
 
 // Ré-exporté ici pour la commodité des imports côté serveur (Server Actions / pages).
 // Défini dans './auth' (module pur, sans `next/headers`) pour rester importable
@@ -14,12 +16,14 @@ export async function getSession(): Promise<Session | null> {
   return verifySessionToken(token);
 }
 
-// À appeler en tête de chaque Server Action / page protégée.
+// À appeler en tête de chaque Server Action / page protégée. Depuis le durcissement
+// post-v1, le rôle est re-vérifié EN BASE à chaque appel : rétrogradation ou
+// désactivation de compte prennent effet à la requête suivante (le proxy Edge, lui,
+// reste un pré-filtre rapide par jeton). Tout refus -> retour au login.
 export async function requireRole(roles: Role[]): Promise<Session> {
   const session = await getSession();
   if (!session) redirect('/login');
-  if (!roles.includes(session.role) && session.role !== 'admin') {
-    throw new Error('Accès refusé pour ce rôle');
-  }
-  return session;
+  const fresh = await freshRoleIfAllowed(db, session.userId, roles);
+  if (!fresh) redirect('/login');
+  return { ...session, role: fresh };
 }

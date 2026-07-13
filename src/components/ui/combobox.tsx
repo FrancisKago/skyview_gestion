@@ -87,6 +87,9 @@ export function Combobox({
             const exact = resolveExact(options, text);
             if (exact) { setText(exact.label); setChosen(exact); onSelect?.(exact.id); }
           }
+          // Tab vers le champ suivant : la liste se ferme. Le tap-pour-choisir n'est
+          // pas concerné : son pointerdown est preventDefault, le blur ne survient pas.
+          setOpen(false);
         }}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { setOpen(true); return; }
@@ -94,8 +97,9 @@ export function Combobox({
           if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, suggestions.length - 1)); }
           else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
           else if (e.key === 'Enter') {
-            // Entrée choisit la suggestion active au lieu de soumettre le formulaire.
-            if (suggestions[active]) { e.preventDefault(); pick(suggestions[active]); }
+            // Entrée n'est JAMAIS une soumission quand la liste est ouverte (spec §2.2).
+            e.preventDefault();
+            if (suggestions[active]) pick(suggestions[active]);
           } else if (e.key === 'Escape') { setOpen(false); }
         }}
       />

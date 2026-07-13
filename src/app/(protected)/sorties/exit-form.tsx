@@ -1,12 +1,11 @@
 'use client';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { recordExitAction } from './actions';
-import { SearchBox } from '@/components/ui/search-box';
 import { ListRow } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input, Select, DateField } from '@/components/ui/fields';
+import { Combobox } from '@/components/ui/combobox';
+import { Input, DateField } from '@/components/ui/fields';
 import { FormError } from '@/components/ui/form-error';
-import { matchesQuery } from '@/lib/text';
 import type { ProductGroup } from '@/lib/product-grouping';
 
 type Prod = { id: number; name: string; baseUnit: string };
@@ -14,11 +13,6 @@ type Prod = { id: number; name: string; baseUnit: string };
 export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>; today: string }) {
   const [state, action, pending] = useActionState(recordExitAction, {});
   const [lineCount, setLineCount] = useState(5);
-  const [query, setQuery] = useState('');
-  // Sélection par ligne (index → id produit en chaîne). Selects contrôlés : sans ça,
-  // filtrer les options via la recherche ferait perdre silencieusement un choix déjà
-  // fait (le <select> non contrôlé retombe sur le placeholder si son option disparaît).
-  const [selected, setSelected] = useState<Record<number, string>>({});
   const formRef = useRef<HTMLFormElement>(null);
   // Jeton d'idempotence : un par soumission, transmis au serveur (cf. recordServiceExit).
   // Un double-clic renvoie le MÊME jeton tant que le formulaire n'a pas été réinitialisé
@@ -29,6 +23,7 @@ export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>;
   // sur `state` (nouvel objet à chaque retour d'action) et non `state.success` : deux
   // succès consécutifs doivent chacun vider le formulaire. Le jeton est régénéré ici,
   // dans le même effet, pour que la PROCHAINE soumission parte avec un jeton neuf.
+  // Les Combobox écoutent l'événement reset natif : formRef.reset() suffit à les vider.
   useEffect(() => {
     if (state.success) {
       formRef.current?.reset();
@@ -37,25 +32,20 @@ export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>;
       // formRef.current?.reset() ci-dessus, ça ne peut se faire qu'après commit.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setToken(crypto.randomUUID());
-      // Les selects étant contrôlés, formRef.reset() ne suffit plus pour les vider.
-      setSelected({});
     }
   }, [state]);
   // React 19 réinitialise les champs non contrôlés après chaque soumission,
   // même en erreur : on réinjecte date et quantités soumises en defaultValue et
   // la `key` (compteur de tentatives) force le remontage du <form> pour les
-  // appliquer. Les selects contrôlés (état `selected` porté par le composant,
-  // hors du sous-arbre remonté) conservent d'eux-mêmes leur valeur.
+  // appliquer. Les combobox se réinitialisent via `defaultValue` au remontage
+  // `key={attempt}` — le produit soumis revient par `values.lines[i].productId`.
   const v = state.values;
   const count = Math.max(lineCount, v?.lines.length ?? 0);
-  // Options de la ligne i : le produit déjà sélectionné reste épinglé même si la
-  // recherche l'exclut — sinon son <option> disparaîtrait et le choix serait perdu.
-  const optionsFor = (i: number) => groups
-    .map((g) => ({
-      ...g,
-      products: g.products.filter((p) => matchesQuery(p.name, query) || String(p.id) === (selected[i] ?? '')),
-    }))
-    .filter((g) => g.products.length > 0);
+  // Options aplaties pour le Combobox : l'ordre des groupes (★ Fréquents puis
+  // catégories) est préservé par flatMap ; le groupe s'affiche en petit libellé.
+  const options = groups.flatMap((g) => g.products.map((p) => ({
+    id: p.id, label: p.name, group: g.label, sublabel: p.baseUnit,
+  })));
   return (
     <form ref={formRef} key={state.attempt ?? 0} action={action} className="bg-card border border-line rounded-xl p-4 space-y-3 text-sm">
       <input type="hidden" name="clientToken" value={token} />
@@ -66,20 +56,10 @@ export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>;
       <p className="text-xs text-muted">
         Service à cheval sur minuit : gardez la date du jour où le service a commencé.
       </p>
-      <SearchBox value={query} onChange={setQuery} />
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="flex gap-2">
-          <Select name="lineProduct" className="flex-1" value={selected[i] ?? ''}
-            onChange={(e) => setSelected((s) => ({ ...s, [i]: e.target.value }))}>
-            <option value="">— produit —</option>
-            {optionsFor(i).map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.baseUnit})</option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
+          <Combobox name="lineProduct" className="flex-1" placeholder="Produit…"
+            options={options} defaultValue={v?.lines[i]?.productId || undefined} />
           <Input name="lineQty" type="number" step="0.001" min="0" placeholder="Qté"
             className="w-24" inputMode="decimal" defaultValue={v?.lines[i]?.qty} />
         </div>

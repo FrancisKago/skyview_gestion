@@ -1,7 +1,6 @@
 'use client';
-import { useRef } from 'react';
 import { matchLineAction } from './actions';
-import { Select } from '@/components/ui/fields';
+import { Combobox } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
 
 type ArticleOption = { id: number; cashName: string };
@@ -12,12 +11,12 @@ type ArticleOption = { id: number; cashName: string };
 export function MatchForm({ lineId, raw, qty, articles }: {
   lineId: number; raw: string; qty: number; articles: ArticleOption[];
 }) {
-  const selectRef = useRef<HTMLSelectElement>(null);
   return (
     <form
       action={matchLineAction}
       onSubmit={(e) => {
-        const selected = selectRef.current?.value ?? '';
+        const selected = (e.currentTarget.elements.namedItem('cashName') as HTMLInputElement | null)?.value ?? '';
+        if (!selected) { e.preventDefault(); return; } // rien de sélectionné -> pas d'envoi
         if (!confirm(`Associer « ${raw} » à ${selected} ? Cette correspondance s'appliquera aussi aux prochains imports.`)) {
           e.preventDefault();
         }
@@ -26,9 +25,8 @@ export function MatchForm({ lineId, raw, qty, articles }: {
     >
       <input type="hidden" name="lineId" value={lineId} />
       <span className="flex-1 text-cream">« {raw} » (qté {qty})</span>
-      <Select ref={selectRef} name="cashName" className="min-h-9 p-1.5 text-sm">
-        {articles.map((a) => <option key={a.id} value={a.cashName}>{a.cashName}</option>)}
-      </Select>
+      <Combobox name="cashName" valueAs="label" placeholder="Article caisse…" className="flex-1 min-w-40"
+        options={articles.map((a) => ({ id: a.id, label: a.cashName }))} />
       <Button type="submit" variant="ghost" className="min-h-9 px-3 text-xs">Associer</Button>
     </form>
   );

@@ -11,6 +11,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { DateField, Select } from '@/components/ui/fields';
+import { Combobox } from '@/components/ui/combobox';
 import { ArrowLeftRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -110,17 +111,13 @@ export default async function MouvementsPage({ searchParams }: {
               {locs.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </Select></label>
           <label className="space-y-1"><span className="text-muted text-xs">Produit</span>
-            <Select name="produit" defaultValue={produit ? String(produit.id) : ''} className="w-full">
-              <option value="">Tous</option>
-              {allProducts.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}{p.active ? '' : ' (inactif)'}</option>
-              ))}
-            </Select></label>
+            <Combobox name="produit" placeholder="Tous" className="w-full"
+              options={allProducts.map((p) => ({ id: p.id, label: p.name + (p.active ? '' : ' (inactif)') }))}
+              defaultValue={produit?.id} /></label>
           <label className="space-y-1 col-span-2"><span className="text-muted text-xs">Article caisse (filtre ses ingrédients)</span>
-            <Select name="article" defaultValue={article ? String(article.id) : ''} className="w-full">
-              <option value="">Tous</option>
-              {allArticles.map((a) => <option key={a.id} value={a.id}>{a.cashName}</option>)}
-            </Select></label>
+            <Combobox name="article" placeholder="Tous" className="w-full"
+              options={allArticles.map((a) => ({ id: a.id, label: a.cashName }))}
+              defaultValue={article?.id} /></label>
           <Button type="submit" className="col-span-2 w-full">Filtrer</Button>
           <a href="/compta/mouvements" className="col-span-2 text-center text-muted underline underline-offset-4 text-xs">
             Réinitialiser</a>

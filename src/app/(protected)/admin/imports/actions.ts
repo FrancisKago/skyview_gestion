@@ -1,11 +1,16 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
+import { locations } from '@/db/schema';
 import { requireRole } from '@/lib/session';
 import { parseTable, MAX_UPLOAD_BYTES } from '@/lib/import-table';
-import { PRODUCT_HEADERS, ARTICLE_HEADERS } from '@/lib/templates';
+import { PRODUCT_HEADERS, ARTICLE_HEADERS, INVENTORY_HEADERS } from '@/lib/templates';
 import { importProducts, type ImportReport } from '@/lib/import-products';
 import { importArticles } from '@/lib/import-articles';
+import { importInventory, type InventoryImportReport } from '@/lib/import-inventory';
+import { formNumber } from '@/lib/forms';
+import { isValidDateString } from '@/lib/dates';
 
 export type ImportFormState = { error?: string; report?: ImportReport };
 
@@ -41,4 +46,37 @@ export async function importArticlesAction(_prev: ImportFormState, formData: For
   return runImport(formData, ARTICLE_HEADERS,
     (rows, update) => importArticles(db, rows, { update }),
     ['/admin/imports', '/admin/articles']);
+}
+
+export type InventoryImportFormState = { error?: string; report?: InventoryImportReport };
+
+export async function importInventoryAction(
+  _prev: InventoryImportFormState, formData: FormData,
+): Promise<InventoryImportFormState> {
+  const session = await requireRole(['admin']);
+  const file = formData.get('file') as File | null;
+  if (!file || !file.size) return { error: 'Choisissez un fichier CSV ou Excel' };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: 'Fichier trop volumineux (4 Mo maximum)' };
+  const locationId = formNumber(formData, 'locationId');
+  if (locationId == null) return { error: 'Emplacement invalide' };
+  // L'emplacement doit exister et être journalisé (bar/cuisine — pas le magasin, suivi dans Odoo).
+  const [loc] = await db.select({ id: locations.id }).from(locations)
+    .where(and(eq(locations.id, locationId), ne(locations.type, 'magasin')));
+  if (!loc) return { error: 'Emplacement invalide' };
+  const inventoryDate = String(formData.get('inventoryDate') ?? '').trim();
+  if (!isValidDateString(inventoryDate)) return { error: "Date d'inventaire invalide" };
+  const parsed = parseTable(Buffer.from(await file.arrayBuffer()), file.name, [...INVENTORY_HEADERS]);
+  if (!parsed.ok) return { error: parsed.error };
+  try {
+    const res = await importInventory(db, parsed.rows, {
+      locationId, inventoryDate, countedBy: session.userId,
+    });
+    if (res.ok) {
+      for (const p of ['/admin/imports', '/stock', '/inventaire', '/compta/mouvements']) revalidatePath(p);
+      return { report: res.report };
+    }
+    return { error: res.error, report: res.report };
+  } catch {
+    return { error: 'Service indisponible, veuillez réessayer.' };
+  }
 }

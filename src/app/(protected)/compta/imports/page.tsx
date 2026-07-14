@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { salesImports, salesImportLines, saleArticles } from '@/db/schema';
-import { desc, isNull, asc } from 'drizzle-orm';
+import { desc, isNull, asc, eq } from 'drizzle-orm';
 import { requireRole } from '@/lib/session';
 import { UploadForm } from './upload-form';
 import { MatchForm } from './match-form';
@@ -17,7 +17,10 @@ export default async function ImportsPage() {
     .orderBy(desc(salesImports.createdAt)).limit(10);
   const pending = await db.select().from(salesImportLines)
     .where(isNull(salesImportLines.saleArticleId));
-  const articles = await db.select().from(saleArticles).orderBy(asc(saleArticles.cashName));
+  // Correspondance manuelle : uniquement les articles actifs (spec §5).
+  // L'auto-match par nom dans storeSalesImport reste inchangé.
+  const articles = await db.select().from(saleArticles)
+    .where(eq(saleArticles.active, true)).orderBy(asc(saleArticles.cashName));
   const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="space-y-4">

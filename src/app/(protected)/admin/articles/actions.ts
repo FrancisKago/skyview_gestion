@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
 import { formNumber } from '@/lib/forms';
-import { saveSaleArticle } from '@/lib/sale-articles';
+import { saveSaleArticle, deleteSaleArticle, archiveSaleArticle } from '@/lib/sale-articles';
 
 export type ArticleFormState = {
   error?: string;
@@ -78,5 +78,40 @@ export async function saveSaleArticleAction(prev: ArticleFormState, formData: Fo
   if (id != null) redirect('/admin/articles');
   // Succès en création : état vide → key repart à 0, les champs remontent
   // vides (le reset automatique après soumission est le comportement souhaité).
+  return {};
+}
+
+export type ArticleRowState = { error?: string };
+
+export async function deleteSaleArticleAction(_prev: ArticleRowState, formData: FormData):
+  Promise<ArticleRowState> {
+  await requireRole(['admin']);
+  const id = formNumber(formData, 'id');
+  if (id == null) return { error: 'Article invalide' };
+  let res: Awaited<ReturnType<typeof deleteSaleArticle>>;
+  try {
+    res = await deleteSaleArticle(db, id);
+  } catch {
+    return { error: 'Service indisponible, veuillez réessayer.' };
+  }
+  if (!res.ok) return { error: res.error };
+  revalidatePath('/admin/articles');
+  return {};
+}
+
+export async function archiveSaleArticleAction(_prev: ArticleRowState, formData: FormData):
+  Promise<ArticleRowState> {
+  await requireRole(['admin']);
+  const id = formNumber(formData, 'id');
+  if (id == null) return { error: 'Article invalide' };
+  const archived = formData.get('archived') === '1';
+  let res: Awaited<ReturnType<typeof archiveSaleArticle>>;
+  try {
+    res = await archiveSaleArticle(db, id, archived);
+  } catch {
+    return { error: 'Service indisponible, veuillez réessayer.' };
+  }
+  if (!res.ok) return { error: res.error };
+  revalidatePath('/admin/articles');
   return {};
 }

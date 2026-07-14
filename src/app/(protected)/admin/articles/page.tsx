@@ -4,10 +4,13 @@ import { db } from '@/db';
 import { saleArticles, recipeLines, products, locations } from '@/db/schema';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { requireRole } from '@/lib/session';
+import { getReferencedArticleIds } from '@/lib/sale-articles';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ArticleForm } from './article-form';
+import { ArticleActions } from './article-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,10 +27,12 @@ export default async function ArticlesPage({ searchParams }: {
     ? await db.select().from(recipeLines).where(eq(recipeLines.saleArticleId, editing.id))
     : [];
   const arts = await db.select({
-    id: saleArticles.id, cashName: saleArticles.cashName, locName: locations.name,
+    id: saleArticles.id, cashName: saleArticles.cashName, active: saleArticles.active,
+    locName: locations.name,
   }).from(saleArticles)
     .innerJoin(locations, eq(saleArticles.locationId, locations.id))
     .orderBy(asc(saleArticles.cashName));
+  const referenced = await getReferencedArticleIds(db);
   const lines = await db.select({
     saleArticleId: recipeLines.saleArticleId, qty: recipeLines.qty,
     productName: products.name, baseUnit: products.baseUnit,
@@ -66,10 +71,14 @@ export default async function ArticlesPage({ searchParams }: {
             <Card key={a.id} className="p-3 text-sm">
               <div className="flex items-baseline justify-between gap-2">
                 <span>
-                  <span className="font-semibold text-cream">{a.cashName}</span>{' '}
+                  <span className="font-semibold text-cream">{a.cashName}</span>
+                  {!a.active && <span className="ml-2 align-middle"><Badge tone="neutral">archivé</Badge></span>}{' '}
                   <span className="text-muted">({a.locName})</span>
                 </span>
-                <Link href={`/admin/articles?edit=${a.id}`} className="text-action text-xs underline underline-offset-4 shrink-0">Modifier</Link>
+                <span className="flex flex-col items-end gap-1 shrink-0">
+                  <Link href={`/admin/articles?edit=${a.id}`} className="text-action text-xs underline underline-offset-4 shrink-0">Modifier</Link>
+                  <ArticleActions id={a.id} name={a.cashName} active={a.active} deletable={!referenced.has(a.id)} />
+                </span>
               </div>
               <ul className="text-muted pl-4 mt-1">
                 {lines.filter((l) => l.saleArticleId === a.id).map((l, i) => (

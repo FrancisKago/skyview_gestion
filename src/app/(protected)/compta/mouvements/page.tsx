@@ -47,7 +47,7 @@ export default async function MouvementsPage({ searchParams }: {
     id: products.id, name: products.name, active: products.active,
   }).from(products).orderBy(asc(products.name));
   const allArticles = await db.select({
-    id: saleArticles.id, cashName: saleArticles.cashName,
+    id: saleArticles.id, cashName: saleArticles.cashName, active: saleArticles.active,
   }).from(saleArticles).orderBy(asc(saleArticles.cashName));
 
   // Produit et article exclusifs : produit gagne (spec §4.1).
@@ -116,7 +116,7 @@ export default async function MouvementsPage({ searchParams }: {
               defaultValue={produit?.id} /></label>
           <label className="space-y-1 col-span-2"><span className="text-muted text-xs">Article caisse (filtre ses ingrédients)</span>
             <Combobox name="article" placeholder="Tous" className="w-full"
-              options={allArticles.map((a) => ({ id: a.id, label: a.cashName }))}
+              options={allArticles.map((a) => ({ id: a.id, label: a.cashName + (a.active ? '' : ' (archivé)') }))}
               defaultValue={article?.id} /></label>
           <Button type="submit" className="col-span-2 w-full">Filtrer</Button>
           <a href="/compta/mouvements" className="col-span-2 text-center text-muted underline underline-offset-4 text-xs">

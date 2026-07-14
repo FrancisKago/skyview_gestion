@@ -1,5 +1,5 @@
-import { eq, inArray } from 'drizzle-orm';
-import { saleArticles, recipeLines, products } from '@/db/schema';
+import { eq, inArray, sql, isNotNull } from 'drizzle-orm';
+import { saleArticles, recipeLines, products, salesImportLines } from '@/db/schema';
 import type { AnyDb } from '@/db';
 
 export interface SaleArticleInput {
@@ -66,4 +66,42 @@ export async function getRecipeMap(db: AnyDb): Promise<Map<number, Array<{ produ
     map.set(r.saleArticleId, list);
   }
   return map;
+}
+
+// Suppression définitive d'un article : uniquement si aucune vente importée ne le
+// référence. SA fiche (recipe_lines) est sa composition : elle part en cascade,
+// elle ne bloque pas (spec suppression §3.2).
+export async function deleteSaleArticle(db: AnyDb, id: number):
+  Promise<{ ok: boolean; referenced?: boolean; error?: string }> {
+  const [target] = await db.select({ id: saleArticles.id }).from(saleArticles)
+    .where(eq(saleArticles.id, id));
+  if (!target) return { ok: false, error: 'Article introuvable' };
+  const [row] = await db.select({ n: sql<number>`count(*)::int` })
+    .from(salesImportLines).where(eq(salesImportLines.saleArticleId, id));
+  if (row.n > 0) {
+    return {
+      ok: false, referenced: true,
+      error: `Article utilisé (${row.n} vente(s) importée(s)) — archivez-le plutôt`,
+    };
+  }
+  await db.delete(saleArticles).where(eq(saleArticles.id, id)); // recipe_lines: cascade
+  return { ok: true };
+}
+
+// Archiver = désactiver (état unifié, spec §3.3). Idempotent.
+export async function archiveSaleArticle(db: AnyDb, id: number, archived: boolean):
+  Promise<{ ok: boolean; error?: string }> {
+  const [target] = await db.select({ id: saleArticles.id }).from(saleArticles)
+    .where(eq(saleArticles.id, id));
+  if (!target) return { ok: false, error: 'Article introuvable' };
+  await db.update(saleArticles).set({ active: !archived }).where(eq(saleArticles.id, id));
+  return { ok: true };
+}
+
+// Ids d'articles référencés par au moins une vente importée (liste admin).
+export async function getReferencedArticleIds(db: AnyDb): Promise<Set<number>> {
+  const rows: Array<{ saleArticleId: number | null }> = await db
+    .selectDistinct({ saleArticleId: salesImportLines.saleArticleId })
+    .from(salesImportLines).where(isNotNull(salesImportLines.saleArticleId));
+  return new Set(rows.map((r) => r.saleArticleId!));
 }

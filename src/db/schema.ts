@@ -44,6 +44,7 @@ export const saleArticles = pgTable('sale_articles', {
   id: serial('id').primaryKey(),
   cashName: text('cash_name').notNull().unique(), // nom exact dans l'export caisse
   locationId: integer('location_id').notNull().references(() => locations.id),
+  active: boolean('active').notNull().default(true),
 });
 
 export const recipeLines = pgTable('recipe_lines', {

@@ -3,7 +3,7 @@ import { locations, products, recipeLines, saleArticles } from '@/db/schema';
 import { asc, eq, ne } from 'drizzle-orm';
 import Link from 'next/link';
 import { requireRole } from '@/lib/session';
-import { isValidDateString } from '@/lib/dates';
+import { isValidDateString, toDateStr } from '@/lib/dates';
 import { getMovementDetail, getMovementReport } from '@/lib/movement-report';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
@@ -15,10 +15,6 @@ import { Combobox } from '@/components/ui/combobox';
 import { ArrowLeftRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 export default async function MouvementsPage({ searchParams }: {
   searchParams: Promise<{

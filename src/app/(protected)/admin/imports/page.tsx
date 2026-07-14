@@ -2,6 +2,7 @@ import { asc, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { locations } from '@/db/schema';
 import { requireRole } from '@/lib/session';
+import { toDateStr } from '@/lib/dates';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { ImportForm } from './import-form';
@@ -9,10 +10,6 @@ import { InventoryImportForm } from './inventory-import-form';
 import { importProductsAction, importArticlesAction } from './actions';
 
 export const dynamic = 'force-dynamic';
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function TemplateLinks({ type }: { type: 'produits' | 'articles' | 'inventaire' }) {
   const base = `/admin/imports/template?type=${type}`;

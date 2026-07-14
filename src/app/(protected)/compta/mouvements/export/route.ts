@@ -3,13 +3,9 @@ import { asc, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { locations, recipeLines, saleArticles } from '@/db/schema';
 import { getSession } from '@/lib/session';
-import { isValidDateString } from '@/lib/dates';
+import { isValidDateString, toDateStr } from '@/lib/dates';
 import { getMovementReport } from '@/lib/movement-report';
 import { buildMovementExport } from '@/lib/movement-export';
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 // GET /compta/mouvements/export?format=csv|xlsx&du=…&au=…&emplacement=…&produit=…&article=…
 // Mêmes défauts et mêmes règles de filtres que la page Mouvements (duplication assumée :

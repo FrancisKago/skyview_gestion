@@ -72,6 +72,8 @@ vercel link
    vercel --prod
    ```
 
+**Note de déploiement (archivage des articles) :** la migration `0005` (colonne `active` sur `sale_articles`) doit être appliquée sur Neon (`npm run db:migrate` ou `npx drizzle-kit migrate`) avant ou en même temps que le déploiement du code qui l'utilise.
+
 ## Recette manuelle (journée type)
 
 Partout où un produit ou un article est demandé (commandes, sorties, fiches techniques, ajustements, correspondance caisse, filtres des mouvements), la saisie se fait par autocomplétion : taper les premières lettres puis choisir une suggestion.
@@ -95,3 +97,5 @@ La spécification complète du projet se trouve dans [docs/superpowers/specs/202
 ## Comptes & rôles
 
 Le seed initial (`npm run db:seed`) ne crée qu'un compte administrateur, avec le mot de passe fourni via `ADMIN_PASSWORD`. Toutes les autres personnes (magasinier, barman, cuisinier, comptable) sont ensuite créées par l'admin depuis l'écran Utilisateurs de l'application — il n'y a pas d'inscription libre. L'admin peut ensuite modifier ces comptes (nom, rôle, mot de passe), éditer les produits, articles et fiches techniques, et initialiser le catalogue en masse depuis la page `/admin/imports` (modèles CSV/Excel à télécharger + import en masse de produits et d'articles).
+
+Depuis les listes de produits et d'articles, l'admin peut aussi supprimer définitivement un élément jamais utilisé (aucun mouvement, aucune fiche, aucune vente) ou, s'il a un historique, l'archiver : l'élément porte alors le badge « archivé » et disparaît des saisies (commandes, sorties, fiches techniques, correspondance caisse) tout en restant visible dans l'historique et les mouvements. Côté comptable, les ventes importées continuent de reconnaître le nom caisse d'un article archivé : l'archivage masque l'article des écrans de saisie mais ne casse pas le rapprochement s'il réapparaît dans un export de caisse.

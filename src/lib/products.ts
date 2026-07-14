@@ -1,5 +1,7 @@
-import { eq } from 'drizzle-orm';
-import { products } from '@/db/schema';
+import { eq, sql } from 'drizzle-orm';
+import {
+  products, recipeLines, orderLines, stockMovements, serviceExitLines, inventoryLines,
+} from '@/db/schema';
 import type { AnyDb } from '@/db';
 
 export interface ProductInput {
@@ -56,4 +58,56 @@ export async function saveProduct(db: AnyDb, input: ProductInput):
   }
   const [row] = await db.insert(products).values(values).returning();
   return { ok: true, id: row.id };
+}
+
+// Tables référençant un produit, avec leur libellé de motif (spec suppression §3.1).
+const PRODUCT_REFS = [
+  { table: recipeLines, label: 'fiche(s) technique(s)' },
+  { table: orderLines, label: 'ligne(s) de commande' },
+  { table: stockMovements, label: 'mouvement(s) de stock' },
+  { table: serviceExitLines, label: 'sortie(s) de service' },
+  { table: inventoryLines, label: "ligne(s) d'inventaire" },
+] as const;
+
+// Suppression définitive : uniquement si AUCUNE référence nulle part.
+// Sinon, motif détaillé et invitation à archiver (spec §3.1).
+export async function deleteProduct(db: AnyDb, id: number):
+  Promise<{ ok: boolean; referenced?: boolean; error?: string }> {
+  const [target] = await db.select({ id: products.id }).from(products).where(eq(products.id, id));
+  if (!target) return { ok: false, error: 'Produit introuvable' };
+  const details: string[] = [];
+  for (const ref of PRODUCT_REFS) {
+    const [row] = await db.select({ n: sql<number>`count(*)::int` })
+      .from(ref.table).where(eq(ref.table.productId, id));
+    if (row.n > 0) details.push(`${row.n} ${ref.label}`);
+  }
+  if (details.length) {
+    return {
+      ok: false, referenced: true,
+      error: `Produit utilisé (${details.join(', ')}) — archivez-le plutôt`,
+    };
+  }
+  await db.delete(products).where(eq(products.id, id));
+  return { ok: true };
+}
+
+// Archiver = désactiver (état unifié, spec §3.3). Idempotent.
+export async function archiveProduct(db: AnyDb, id: number, archived: boolean):
+  Promise<{ ok: boolean; error?: string }> {
+  const [target] = await db.select({ id: products.id }).from(products).where(eq(products.id, id));
+  if (!target) return { ok: false, error: 'Produit introuvable' };
+  await db.update(products).set({ active: !archived }).where(eq(products.id, id));
+  return { ok: true };
+}
+
+// Ids de produits référencés quelque part — la liste admin s'en sert pour ne
+// proposer « Supprimer » que sur les supprimables (le serveur revérifie via deleteProduct).
+export async function getReferencedProductIds(db: AnyDb): Promise<Set<number>> {
+  const ids = new Set<number>();
+  for (const ref of PRODUCT_REFS) {
+    const rows: Array<{ productId: number }> = await db
+      .selectDistinct({ productId: ref.table.productId }).from(ref.table);
+    for (const r of rows) ids.add(r.productId);
+  }
+  return ids;
 }

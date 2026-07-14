@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { products } from '@/db/schema';
 import { asc, eq } from 'drizzle-orm';
 import { requireRole } from '@/lib/session';
+import { getReferencedProductIds } from '@/lib/products';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ProductForm } from './product-form';
@@ -20,6 +21,7 @@ export default async function ProduitsPage({ searchParams }: {
     ? (await db.select().from(products).where(eq(products.id, editId)))[0]
     : undefined;
   const rows = await db.select().from(products).orderBy(asc(products.name));
+  const referenced = await getReferencedProductIds(db);
   return (
     <div className="space-y-4">
       <PageHeader title="Produits" />
@@ -38,6 +40,7 @@ export default async function ProduitsPage({ searchParams }: {
           id: p.id, name: p.name, baseUnit: p.baseUnit,
           packName: p.packName, packSize: p.packSize == null ? null : Number(p.packSize),
           purchasePrice: Number(p.purchasePrice), active: p.active,
+          deletable: !referenced.has(p.id),
         }))} />
       )}
     </div>

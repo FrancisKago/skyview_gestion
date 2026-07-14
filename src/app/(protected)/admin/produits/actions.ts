@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { requireRole } from '@/lib/session';
 import { formNumber, formValues } from '@/lib/forms';
-import { saveProduct } from '@/lib/products';
+import { saveProduct, deleteProduct, archiveProduct } from '@/lib/products';
 
 export type ProductFormState = {
   error?: string;
@@ -51,5 +51,40 @@ export async function saveProductAction(prev: ProductFormState, formData: FormDa
   if (id != null) redirect('/admin/produits');
   // Succès en création : état vide → key repart à 0, les champs remontent
   // vides (le reset automatique après soumission est le comportement souhaité).
+  return {};
+}
+
+export type ProductRowState = { error?: string };
+
+export async function deleteProductAction(_prev: ProductRowState, formData: FormData):
+  Promise<ProductRowState> {
+  await requireRole(['admin']);
+  const id = formNumber(formData, 'id');
+  if (id == null) return { error: 'Produit invalide' };
+  let res: Awaited<ReturnType<typeof deleteProduct>>;
+  try {
+    res = await deleteProduct(db, id);
+  } catch {
+    return { error: 'Service indisponible, veuillez réessayer.' };
+  }
+  if (!res.ok) return { error: res.error };
+  revalidatePath('/admin/produits');
+  return {};
+}
+
+export async function archiveProductAction(_prev: ProductRowState, formData: FormData):
+  Promise<ProductRowState> {
+  await requireRole(['admin']);
+  const id = formNumber(formData, 'id');
+  if (id == null) return { error: 'Produit invalide' };
+  const archived = formData.get('archived') === '1';
+  let res: Awaited<ReturnType<typeof archiveProduct>>;
+  try {
+    res = await archiveProduct(db, id, archived);
+  } catch {
+    return { error: 'Service indisponible, veuillez réessayer.' };
+  }
+  if (!res.ok) return { error: res.error };
+  revalidatePath('/admin/produits');
   return {};
 }

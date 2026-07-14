@@ -7,7 +7,9 @@ export const PRODUCT_HEADERS = [
 
 export const ARTICLE_HEADERS = ['Article caisse', 'Emplacement', 'Produit', 'Quantité'] as const;
 
-const EXAMPLES: Record<'produits' | 'articles', string[][]> = {
+export const INVENTORY_HEADERS = ['Produit', 'Quantité comptée'] as const;
+
+const EXAMPLES: Record<'produits' | 'articles' | 'inventaire', string[][]> = {
   produits: [
     ['Castel 65cl', 'Bières', 'bouteille', 'casier', '12', '650', '24'],
     ['Poulet', 'Vivres', 'kg', '', '', '3500', '5'],
@@ -19,12 +21,18 @@ const EXAMPLES: Record<'produits' | 'articles', string[][]> = {
     ['Castel 65cl', 'Bar', 'Castel 65cl', '1'],
     ['Règles : une ligne par ingrédient (l’article est répété). Emplacement : Bar ou Cuisine. Les produits doivent déjà exister.'],
   ],
+  inventaire: [
+    ['Castel 65cl', '18'],
+    ['Poulet', '2,5'],
+    ['Règles : une ligne par produit compté. Les produits absents du fichier ne sont PAS comptés et gardent leur stock. Virgules décimales acceptées.'],
+  ],
 };
 
-export function buildTemplate(type: 'produits' | 'articles', format: 'xlsx' | 'csv'): {
+export function buildTemplate(type: 'produits' | 'articles' | 'inventaire', format: 'xlsx' | 'csv'): {
   buffer: Buffer; filename: string; contentType: string;
 } {
-  const headers = type === 'produits' ? [...PRODUCT_HEADERS] : [...ARTICLE_HEADERS];
+  const headers = type === 'produits' ? [...PRODUCT_HEADERS]
+    : type === 'articles' ? [...ARTICLE_HEADERS] : [...INVENTORY_HEADERS];
   if (format === 'csv') {
     // BOM pour qu'Excel FR ouvre l'UTF-8 correctement ; séparateur ;
     const buffer = Buffer.from('\ufeff' + headers.join(';') + '\n', 'utf-8');

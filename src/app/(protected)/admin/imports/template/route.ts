@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
   }
   const type = req.nextUrl.searchParams.get('type');
   const format = req.nextUrl.searchParams.get('format');
-  if ((type !== 'produits' && type !== 'articles') || (format !== 'xlsx' && format !== 'csv')) {
+  if ((type !== 'produits' && type !== 'articles' && type !== 'inventaire')
+    || (format !== 'xlsx' && format !== 'csv')) {
     return new Response('Paramètres invalides', { status: 400 });
   }
   const t = buildTemplate(type, format);

@@ -60,6 +60,14 @@ export async function saveProduct(db: AnyDb, input: ProductInput):
   return { ok: true, id: row.id };
 }
 
+// Homonymes actif/archivé : saveProduct n'impose pas l'unicité du nom, un
+// produit archivé et son remplaçant actif peuvent donc coexister. Tri croissant
+// (archivés d'abord, puis par id) : dans une Map construite sur ce tableau, la
+// dernière entrée par clé gagne — l'actif fait foi, à état égal le plus récent.
+export function preferActive<T extends { id: number; active: boolean }>(items: T[]): T[] {
+  return [...items].sort((a, b) => Number(a.active) - Number(b.active) || a.id - b.id);
+}
+
 // Tables référençant un produit, avec leur libellé de motif (spec suppression §3.1).
 const PRODUCT_REFS = [
   { table: recipeLines, label: 'fiche(s) technique(s)' },

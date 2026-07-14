@@ -1,4 +1,5 @@
 import { products } from '@/db/schema';
+import { preferActive } from './products';
 import { validateInventory, type InventoryGap } from './inventories';
 import { normalizeText, suggestClosest } from './text';
 import { toNumber, type ParsedRow } from './import-table';
@@ -22,10 +23,11 @@ export async function importInventory(
 ): Promise<{ ok: boolean; error?: string; report?: InventoryImportReport }> {
   const report: InventoryImportReport = { counted: 0, duplicates: 0, rejects: [], gaps: [] };
 
-  const prods: Array<{ id: number; name: string }> = await db.select({
-    id: products.id, name: products.name,
+  const prods: Array<{ id: number; name: string; active: boolean }> = await db.select({
+    id: products.id, name: products.name, active: products.active,
   }).from(products);
-  const byName = new Map(prods.map((p) => [normalizeText(p.name), p]));
+  // Homonymes actif/archivé : l'actif fait foi (cf. preferActive).
+  const byName = new Map(preferActive(prods).map((p) => [normalizeText(p.name), p]));
   const names = prods.map((p) => p.name);
 
   // Dernière ligne fait foi par produit (un comptage ne s'additionne pas —

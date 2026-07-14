@@ -1,6 +1,7 @@
 import { ne } from 'drizzle-orm';
 import { locations, products, saleArticles } from '@/db/schema';
 import { saveSaleArticle } from './sale-articles';
+import { preferActive } from './products';
 import { normalizeText, suggestClosest } from './text';
 import { toNumber, type ParsedRow } from './import-table';
 import { round3 } from './units';
@@ -44,10 +45,11 @@ export async function importArticles(
   }).from(locations).where(ne(locations.type, 'magasin'));
   const locByName = new Map(locs.map((l) => [normalizeText(l.name), l.id]));
 
-  const prods: Array<{ id: number; name: string }> = await db.select({
-    id: products.id, name: products.name,
+  const prods: Array<{ id: number; name: string; active: boolean }> = await db.select({
+    id: products.id, name: products.name, active: products.active,
   }).from(products);
-  const prodByName = new Map(prods.map((p) => [normalizeText(p.name), p]));
+  // Homonymes actif/archivé : l'actif fait foi (cf. preferActive).
+  const prodByName = new Map(preferActive(prods).map((p) => [normalizeText(p.name), p]));
   const prodNames = prods.map((p) => p.name);
 
   const arts: Array<{ id: number; cashName: string }> = await db.select({

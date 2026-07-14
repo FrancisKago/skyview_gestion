@@ -1,5 +1,5 @@
 import { products } from '@/db/schema';
-import { saveProduct } from './products';
+import { preferActive, saveProduct } from './products';
 import { normalizeText } from './text';
 import { toNumber, type ParsedRow } from './import-table';
 import type { AnyDb } from '@/db';
@@ -27,10 +27,11 @@ export async function importProducts(
     byName.set(key, r);
   }
 
-  const existing: Array<{ id: number; name: string }> = await db.select({
-    id: products.id, name: products.name,
+  const existing: Array<{ id: number; name: string; active: boolean }> = await db.select({
+    id: products.id, name: products.name, active: products.active,
   }).from(products);
-  const existingByName = new Map(existing.map((p) => [normalizeText(p.name), p.id]));
+  // Homonymes actif/archivé : l'actif fait foi (cf. preferActive).
+  const existingByName = new Map(preferActive(existing).map((p) => [normalizeText(p.name), p.id]));
 
   for (const [key, r] of byName) {
     const c = r.cells;

@@ -50,13 +50,16 @@ export async function saveProduct(db: AnyDb, input: ProductInput):
     packSize: input.packSize != null ? String(input.packSize) : null,
     purchasePrice: Math.round(input.purchasePrice),
     alertThreshold: input.alertThreshold != null ? String(input.alertThreshold) : null,
-    active: input.active ?? true,
+    // `active` absent = ne pas se prononcer : l'état est préservé à l'update
+    // (un import de masse ne doit pas réactiver un produit archivé) ; seul un
+    // `active` explicite (case du formulaire admin) change l'état.
+    ...(input.active !== undefined ? { active: input.active } : {}),
   };
   if (input.id) {
     await db.update(products).set(values).where(eq(products.id, input.id));
     return { ok: true, id: input.id };
   }
-  const [row] = await db.insert(products).values(values).returning();
+  const [row] = await db.insert(products).values({ active: true, ...values }).returning();
   return { ok: true, id: row.id };
 }
 

@@ -3,6 +3,7 @@ import { useActionState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { FormError } from '@/components/ui/form-error';
 import { Select, DateField } from '@/components/ui/fields';
+import { StatCard } from '@/components/ui/stat-card';
 import { importInventoryAction, type InventoryImportFormState } from './actions';
 
 export function InventoryImportForm({ locations, today }: {
@@ -15,6 +16,8 @@ export function InventoryImportForm({ locations, today }: {
     if (state.report && !state.error) formRef.current?.reset();
   }, [state]);
   const nf = (n: number) => n.toLocaleString('fr-FR');
+  // Écart total valorisé — même convention que la page rapprochements (StatCard).
+  const total = (state.report?.gaps ?? []).reduce((s, g) => s + g.gapValue, 0);
   return (
     <form ref={formRef} action={formAction} className="space-y-3 text-sm">
       <input name="file" type="file" accept=".csv,.xlsx,.xls" required
@@ -40,6 +43,7 @@ export function InventoryImportForm({ locations, today }: {
             <p key={i} className="text-negative text-xs">ligne {r.line} : {r.reason}</p>
           ))}
           {state.report.gaps.length > 0 && (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead><tr className="text-left text-muted uppercase tracking-wider">
@@ -59,6 +63,10 @@ export function InventoryImportForm({ locations, today }: {
                 </tbody>
               </table>
             </div>
+            <StatCard label="Écart total valorisé"
+              value={`${total.toLocaleString('fr-FR')} FCFA`}
+              tone={total < 0 ? 'negative' : 'money'} />
+            </>
           )}
         </div>
       )}

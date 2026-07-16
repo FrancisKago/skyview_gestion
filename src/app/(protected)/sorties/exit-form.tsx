@@ -12,7 +12,11 @@ type Prod = { id: number; name: string; baseUnit: string };
 
 export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>; today: string }) {
   const [state, action, pending] = useActionState(recordExitAction, {});
-  const [lineCount, setLineCount] = useState(5);
+  // Lignes identifiées par un id stable (pas l'index) : retirer une ligne du
+  // milieu ne décale pas les valeurs des champs non contrôlés des lignes
+  // suivantes — React conserve leur DOM grâce à la key (cf. order-form.tsx).
+  const [rows, setRows] = useState([0, 1, 2, 3, 4]);
+  const nextRow = useRef(5);
   const formRef = useRef<HTMLFormElement>(null);
   // Jeton d'idempotence : un par soumission, transmis au serveur (cf. recordServiceExit).
   // Un double-clic renvoie le MÊME jeton tant que le formulaire n'a pas été réinitialisé
@@ -40,7 +44,6 @@ export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>;
   // appliquer. Les combobox se réinitialisent via `defaultValue` au remontage
   // `key={attempt}` — le produit soumis revient par `values.lines[i].productId`.
   const v = state.values;
-  const count = Math.max(lineCount, v?.lines.length ?? 0);
   // Options aplaties pour le Combobox : l'ordre des groupes (★ Fréquents puis
   // catégories) est préservé par flatMap ; le groupe s'affiche en petit libellé.
   const options = groups.flatMap((g) => g.products.map((p) => ({
@@ -56,15 +59,22 @@ export function ExitForm({ groups, today }: { groups: Array<ProductGroup<Prod>>;
       <p className="text-xs text-muted">
         Service à cheval sur minuit : gardez la date du jour où le service a commencé.
       </p>
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex gap-2">
+      {rows.map((rowId, i) => (
+        <div key={rowId} className="flex gap-2">
           <Combobox name="lineProduct" className="flex-1" placeholder="Produit…"
             options={options} defaultValue={v?.lines[i]?.productId || undefined} />
           <Input name="lineQty" type="number" step="0.001" min="0" placeholder="Qté"
             className="w-24" inputMode="decimal" defaultValue={v?.lines[i]?.qty} />
+          {rows.length > 1 && (
+            <Button variant="ghost" type="button" aria-label="Retirer la ligne"
+              disabled={pending}
+              onClick={() => setRows((r) => r.filter((id) => id !== rowId))}
+              className="px-3 text-muted hover:text-cream">×</Button>
+          )}
         </div>
       ))}
-      <Button variant="ghost" type="button" onClick={() => setLineCount(count + 2)}
+      <Button variant="ghost" type="button" disabled={pending}
+        onClick={() => { const n = nextRow.current; nextRow.current += 2; setRows((r) => [...r, n, n + 1]); }}
         className="min-h-9 px-3 text-xs">+ Ajouter des lignes</Button>
       <FormError message={state.error} />
       {state.success && <p className="text-success font-semibold">Sorties enregistrées ✓</p>}

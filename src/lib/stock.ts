@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import { stockMovements, products } from '@/db/schema';
 import { round3 } from './units';
 import type { AnyDb } from '@/db';
@@ -43,6 +43,54 @@ export async function getLocationStock(db: AnyDb, locationId: number): Promise<S
       alertThreshold: threshold,
       // L'alerte se déclenche AU seuil ou en dessous (décision produit).
       belowThreshold: threshold != null && qty <= threshold,
+    };
+  });
+}
+
+export interface CatalogLine extends StockLine {
+  active: boolean;
+}
+
+// Catalogue de l'emplacement (page Mon stock) : TOUS les produits actifs, même
+// sans aucun mouvement (qty 0), plus les produits archivés ayant bougé à
+// l'emplacement (physiquement encore là — badge « archivé » côté UI). Ne
+// remplace PAS getLocationStock : sa sémantique « jamais bougé = absent »
+// alimente l'inventaire et la compta, elle est inchangée.
+export async function getLocationCatalog(db: AnyDb, locationId: number): Promise<CatalogLine[]> {
+  const rows = await db.select({
+    productId: products.id,
+    name: products.name,
+    baseUnit: products.baseUnit,
+    purchasePrice: products.purchasePrice,
+    alertThreshold: products.alertThreshold,
+    active: products.active,
+    qty: sql<string>`coalesce(sum(${stockMovements.qty}), 0)`,
+  })
+    .from(products)
+    .leftJoin(stockMovements, and(
+      eq(stockMovements.productId, products.id),
+      eq(stockMovements.locationId, locationId),
+    ))
+    // WHERE avant agrégation : un archivé n'est gardé que si au moins une de
+    // ses lignes jointes porte un mouvement de l'emplacement.
+    .where(or(eq(products.active, true), isNotNull(stockMovements.id)))
+    .groupBy(products.id, products.name, products.baseUnit, products.purchasePrice,
+      products.alertThreshold, products.active)
+    .orderBy(products.name);
+
+  return rows.map((r: typeof rows[number]) => {
+    const qty = round3(Number(r.qty));
+    const threshold = r.alertThreshold != null ? Number(r.alertThreshold) : null;
+    return {
+      productId: r.productId,
+      name: r.name,
+      baseUnit: r.baseUnit,
+      qty,
+      value: Math.round(qty * r.purchasePrice),
+      alertThreshold: threshold,
+      // Même règle que getLocationStock : alerte AU seuil ou en dessous.
+      belowThreshold: threshold != null && qty <= threshold,
+      active: r.active,
     };
   });
 }

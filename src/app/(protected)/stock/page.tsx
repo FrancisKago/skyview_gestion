@@ -1,7 +1,7 @@
 import { PackageSearch } from 'lucide-react';
 import { requireRole } from '@/lib/session';
 import { db } from '@/db';
-import { getLocationStock } from '@/lib/stock';
+import { getLocationCatalog } from '@/lib/stock';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card } from '@/components/ui/card';
@@ -27,18 +27,20 @@ export default async function StockPage() {
     );
   }
 
-  const stock = await getLocationStock(db, session.locationId);
+  // Catalogue complet : tous les produits actifs, avec ou sans stock (qty 0 si
+  // jamais bougé), plus les archivés encore en stock à l'emplacement.
+  const stock = await getLocationCatalog(db, session.locationId);
   const totalValue = stock.reduce((sum, l) => sum + l.value, 0);
   return (
     <div className="space-y-4">
       <PageHeader title="Mon stock" />
       <StatCard label="Valeur totale" value={`${totalValue.toLocaleString('fr-FR')} FCFA`} />
       {stock.length === 0 ? (
-        <EmptyState icon={PackageSearch} message="Aucun mouvement de stock pour l'instant." />
+        <EmptyState icon={PackageSearch} message="Aucun produit au catalogue pour l'instant." />
       ) : (
         <StockList items={stock.map((l) => ({
           productId: l.productId, name: l.name, baseUnit: l.baseUnit,
-          qty: l.qty, value: l.value, belowThreshold: l.belowThreshold,
+          qty: l.qty, value: l.value, belowThreshold: l.belowThreshold, active: l.active,
         }))} />
       )}
     </div>

@@ -8,6 +8,8 @@ import { matchesQuery } from '@/lib/text';
 export interface StockItem {
   productId: number; name: string; baseUnit: string;
   qty: number; value: number; belowThreshold: boolean;
+  // Absent = pas d'info (compat) ; false = produit archivé encore en stock.
+  active?: boolean;
 }
 
 export function StockList({ items }: { items: StockItem[] }) {
@@ -20,6 +22,7 @@ export function StockList({ items }: { items: StockItem[] }) {
         <ListRow key={l.productId} tone={l.qty < 0 ? 'negative' : l.belowThreshold ? 'warning' : 'default'}>
           <span>
             <span className="font-semibold text-cream">{l.name}</span>
+            {l.active === false && <span className="ml-2 align-middle"><Badge tone="neutral">archivé</Badge></span>}
             {l.qty < 0 && <span className="ml-2 align-middle"><Badge tone="negative">négatif !</Badge></span>}
             {l.qty >= 0 && l.belowThreshold && <span className="ml-2 align-middle"><Badge tone="warning">seuil bas</Badge></span>}
             <br /><span className="text-sm text-money tnum">{l.value.toLocaleString('fr-FR')} FCFA</span>
